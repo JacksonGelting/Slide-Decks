@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "broken-deck",
+  "title": "A deck with mistakes",
+  "slides": [
+    {
+      "id": "s1",
+      "layout": "title-body",
+      "title": "Missing content and a typo",
+      "elements": [
+        { "type": "text", "slot": "body", "colour": "red", "content": "Hello" },
+        { "type": "text", "slot": "body" }
+      ]
+    },
+    {
+      "id": "s2",
+      "layout": "two-columns",
+      "elements": []
+    }
+  ]
+}

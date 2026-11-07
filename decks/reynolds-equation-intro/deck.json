@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "id": "reynolds-equation-intro",
+  "title": "The Reynolds Equation",
+  "subtitle": "How a thin film of oil carries a load",
+  "subject": "Tribology",
+  "tags": ["lubrication", "fluid film", "bearings"],
+  "theme": "default",
+  "glossary": {
+    "viscosity": "A fluid's resistance to shear, written $\\mu$ (Pa·s). Thicker oils have higher viscosity.",
+    "film thickness": "The gap $h$ between the two surfaces, filled with lubricant. In real bearings it is a few micrometres.",
+    "hydrodynamic lubrication": "Lubrication where the surfaces' own motion drags oil into the gap and builds enough pressure to keep them fully apart.",
+    "Newtonian": "A fluid whose shear stress is proportional to shear rate: $\\tau = \\mu \\, du/dy$. Most mineral oils behave this way at moderate shear.",
+    "laminar": "Smooth flow in parallel layers, with no turbulent mixing.",
+    "no-slip": "The fluid touching a surface moves at exactly that surface's speed.",
+    "Reynolds number": "The ratio of inertial to viscous forces in a flow. For thin films the useful version is the modified Reynolds number $Re^* = \\dfrac{\\rho U h}{\\mu}\\cdot\\dfrac{h}{L}$.",
+    "Couette flow": "Flow driven by a moving surface dragging the fluid along. Its velocity profile across the film is a straight line.",
+    "Poiseuille flow": "Flow driven by a pressure difference. Its velocity profile across the film is a parabola.",
+    "wedge effect": "When the gap narrows in the direction of motion, more oil is dragged in than can leave by shear alone, so pressure rises to push the excess back.",
+    "squeeze film": "Pressure created when two surfaces approach each other and push the lubricant out of the gap. It appears as the $\\partial h / \\partial t$ term."
+  },
+  "variables": {
+    "h": { "label": "Film thickness", "unit": "µm", "min": 1, "max": 20, "step": 0.5, "value": 5 }
+  },
+  "slides": [
+    {
+      "id": "title",
+      "layout": "title",
+      "title": "The Reynolds Equation",
+      "subtitle": "How a thin film of oil carries a load",
+      "elements": [
+        {
+          "type": "text",
+          "id": "title-tagline",
+          "slot": "body",
+          "content": "Tribology · An introduction to [[hydrodynamic lubrication]]"
+        }
+      ],
+      "notes": "Hover any underlined term for its definition."
+    },
+    {
+      "id": "why-thickness",
+      "layout": "title-body",
+      "title": "Why film thickness matters",
+      "elements": [
+        {
+          "type": "text",
+          "id": "why-lead",
+          "slot": "body",
+          "size": "large",
+          "content": "Load capacity scales with [[viscosity]] and falls fast as $h$ grows: $W \\propto \\mu / h^2$."
+        },
+        {
+          "type": "text",
+          "id": "why-points",
+          "slot": "body",
+          "content": "- Halve the [[film thickness]] and the same bearing carries about **four times** the load.\n- Double the viscosity and the load capacity doubles too.\n- This deck's reference film is $h$ = {{h}} µm, thinner than a human hair by a factor of about 15."
+        }
+      ],
+      "notes": "The inverse-square dependence on h is the headline result the rest of the deck explains."
+    },
+    {
+      "id": "section-derivation",
+      "layout": "section-break",
+      "title": "Where the equation comes from",
+      "elements": [
+        {
+          "type": "text",
+          "slot": "body",
+          "content": "Thin-film assumptions, two kinds of flow, and conservation of mass."
+        }
+      ]
+    },
+    {
+      "id": "assumptions",
+      "layout": "two-column",
+      "title": "Thin-film assumptions",
+      "elements": [
+        {
+          "type": "text",
+          "id": "assumptions-list",
+          "slot": "left",
+          "content": "- The film is thin: $h \\ll L$, so pressure is constant across it.\n- The lubricant is [[Newtonian]] with constant $\\mu$.\n- The flow is [[laminar]] and [[no-slip]] holds at both walls.\n- Inertia and gravity are negligible next to viscous forces."
+        },
+        {
+          "type": "text",
+          "id": "assumptions-why",
+          "slot": "right",
+          "content": "*Why inertia drops out.* In a thin film the modified [[Reynolds number]] is tiny, typically far below 1:\n\n$$Re^* = \\frac{\\rho U h}{\\mu}\\cdot\\frac{h}{L} \\ll 1$$\n\nOsborne Reynolds used exactly this argument in 1886^[His paper explained Beauchamp Tower's 1883 experiments, in which oil pressure in a railway journal bearing pushed a plug out of an oil hole.]."
+        }
+      ]
+    },
+    {
+      "id": "two-flows",
+      "layout": "title-body",
+      "title": "Two ways oil moves through the gap",
+      "elements": [
+        {
+          "type": "text",
+          "id": "two-flows-text",
+          "slot": "body",
+          "content": "The lower surface slides at speed $U$. The flow rate per unit width, $q$, adds a shear-driven [[Couette flow]] and a pressure-driven [[Poiseuille flow]]:\n\n$$q \\;=\\; \\underbrace{\\frac{U h}{2}}_{\\text{shear}} \\;-\\; \\underbrace{\\frac{h^3}{12\\,\\mu}\\,\\frac{dp}{dx}}_{\\text{pressure}}$$\n\nPressure pushes oil from high to low $p$, which is why the second term carries a minus sign."
+        }
+      ]
+    },
+    {
+      "id": "reynolds-1d",
+      "layout": "equation-focus",
+      "title": "The Reynolds equation in one dimension",
+      "elements": [
+        {
+          "type": "text",
+          "id": "eq-1d",
+          "slot": "equation",
+          "content": "$$\\frac{d}{dx}\\!\\left(h^3\\,\\frac{dp}{dx}\\right) \\;=\\; 6\\,\\mu\\, U\\,\\frac{dh}{dx}$$"
+        },
+        {
+          "type": "text",
+          "id": "eq-1d-caption",
+          "slot": "body",
+          "content": "Mass conservation says $dq/dx = 0$. Substituting the flow rate gives one equation for the pressure $p(x)$ in a film of known shape $h(x)$."
+        }
+      ],
+      "notes": "Steady, incompressible, isoviscous film."
+    },
+    {
+      "id": "reading",
+      "layout": "two-column",
+      "title": "Reading the equation",
+      "elements": [
+        {
+          "type": "text",
+          "id": "reading-left",
+          "slot": "left",
+          "content": "**Left side:** how pressure gradients redistribute oil. The $h^3$ factor means a thin film strongly resists being squeezed through.\n\n**Right side:** the source of pressure. It is driven by sliding speed $U$, [[viscosity]] $\\mu$, and the slope of the gap $dh/dx$."
+        },
+        {
+          "type": "text",
+          "id": "reading-right",
+          "slot": "right",
+          "content": "If the surfaces are parallel, $dh/dx = 0$ and the right side vanishes: **no pressure builds** and nothing holds the surfaces apart.\n\nA gap that narrows in the direction of motion creates the [[wedge effect]]. That is why bearing pads tilt and journal bearings run off-centre."
+        }
+      ]
+    },
+    {
+      "id": "reynolds-2d",
+      "layout": "equation-focus",
+      "title": "The general form",
+      "elements": [
+        {
+          "type": "text",
+          "id": "eq-2d",
+          "slot": "equation",
+          "content": "$$\\frac{\\partial}{\\partial x}\\!\\left(\\frac{\\rho h^3}{12\\mu}\\frac{\\partial p}{\\partial x}\\right) + \\frac{\\partial}{\\partial y}\\!\\left(\\frac{\\rho h^3}{12\\mu}\\frac{\\partial p}{\\partial y}\\right) = \\frac{\\partial}{\\partial x}\\!\\left(\\rho h\\,\\frac{U_1 + U_2}{2}\\right) + \\frac{\\partial (\\rho h)}{\\partial t}$$"
+        },
+        {
+          "type": "text",
+          "id": "eq-2d-caption",
+          "slot": "body",
+          "content": "Two directions, compressible lubricant (density $\\rho$), both surfaces moving, plus a [[squeeze film]] term for surfaces that approach each other."
+        }
+      ]
+    },
+    {
+      "id": "takeaways",
+      "layout": "title-body",
+      "title": "Key takeaways",
+      "elements": [
+        {
+          "type": "text",
+          "id": "takeaways-list",
+          "slot": "body",
+          "content": "1. The Reynolds equation is mass conservation for a thin, viscous film.\n2. Pressure only builds when the gap changes shape: a wedge, or surfaces squeezing together.\n3. Load capacity grows with $\\mu U$ and falls roughly as $1/h^2$.\n4. Solve it for $p(x, y)$, then integrate $p$ over the pad to get the load $W$."
+        }
+      ]
+    }
+  ]
+}
