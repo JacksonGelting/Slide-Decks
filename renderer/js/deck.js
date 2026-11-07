@@ -51,6 +51,7 @@ export class DeckViewer {
   buildSlide(slide, index) {
     this._building = { index, id: slide.id };
     this.ctx.footnotes = { n: 0 };
+    this.ctx.symbols = this.ctx.symbolsFor(slide);
     const layout = LAYOUTS[slide.layout] || LAYOUTS["title-body"];
 
     const section = document.createElement("section");

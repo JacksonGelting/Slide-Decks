@@ -20,6 +20,7 @@
 // (in prose or inside $...$ math) re-renders. See variables.js.
 
 import { Variables } from "./variables.js";
+import { annotateTex, compileSymbols } from "./mathsymbols.js";
 
 const ESCAPABLE = new Set(["$", "*", "[", "]", "{", "}", "^", "\\", "@"]);
 
@@ -186,7 +187,12 @@ export function createContext(deck, warn = () => {}) {
   const glossary = new Map();
   for (const [term, def] of Object.entries(deck.glossary || {})) glossary.set(term.toLowerCase(), { term, def });
   const vars = new Variables(deck.variables || {}, warn);
-  return { deck, glossary, vars, warn, footnotes: { n: 0 }, inCard: false };
+  const symbols = compileSymbols(deck.symbols || {});
+  return {
+    deck, glossary, vars, symbols, warn, footnotes: { n: 0 }, inCard: false,
+    /** Symbol tips for one slide: the deck's, with the slide's own entries winning. */
+    symbolsFor: (slide) => (slide?.symbols ? compileSymbols({ ...deck.symbols, ...slide.symbols }) : symbols),
+  };
 }
 
 /** Render inline markup to a DocumentFragment. */
@@ -261,6 +267,8 @@ const VAR_IN_MATH = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 export function renderMath(tex, display, ctx) {
   const span = document.createElement("span");
   span.className = display ? "rt-math rt-math-display" : "rt-math";
+  // Slides can override the deck's symbol tips, so keep the ones in force now.
+  ctx = { ...ctx, symbols: ctx.symbols };
   const names = [...tex.matchAll(VAR_IN_MATH)].map((m) => m[1]);
   if (!names.length) return drawMath(span, tex, display, ctx);
   // Live math: substitute current values, and redraw when they change.
@@ -279,10 +287,20 @@ function drawMath(span, tex, display, ctx) {
     ctx.warn("KaTeX failed to load; math is shown as source.");
     return span;
   }
+  const options = { ...KATEX_OPTIONS, displayMode: display };
+  // Symbol hover tips (see mathsymbols.js). Not inside hover cards.
+  const annotated = ctx.inCard || !ctx.symbols ? null : annotateTex(tex, ctx.symbols);
   try {
-    window.katex.render(tex, span, { ...KATEX_OPTIONS, displayMode: display });
+    try {
+      window.katex.render(annotated ? annotated.tex : tex, span, options);
+    } catch (err) {
+      if (!annotated) throw err;
+      window.katex.render(tex, span, options); // plain render tells a real error from a tip problem
+      ctx.warn(`Symbol tips couldn't be added to "${tex}": ${err.message}`);
+    }
     span.classList.remove("rt-math-error");
     span.removeAttribute("title");
+    if (annotated) attachSymbolTips(span, annotated.tips);
   } catch (err) {
     span.classList.add("rt-math-error");
     span.textContent = tex;
@@ -290,6 +308,15 @@ function drawMath(span, tex, display, ctx) {
     ctx.warn(`Math error in "${tex}": ${err.message}`);
   }
   return span;
+}
+
+function attachSymbolTips(span, tips) {
+  for (const el of span.querySelectorAll("[data-sym]")) {
+    const tip = tips[Number(el.dataset.sym)];
+    if (!tip) continue;
+    el.classList.add("rt-sym");
+    el._card = { title: `$\\displaystyle ${tip.tex}$`, body: tip.tip, compact: true }; // read by interactions.js
+  }
 }
 
 function renderTerm(tok, ctx) {

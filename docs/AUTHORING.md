@@ -57,6 +57,7 @@ This is the guide for writing a deck. Follow it and the deck will validate and r
 | `tags` | no | list of strings | No duplicates. |
 | `theme` | no | string | Only `"default"`. |
 | `glossary` | no | object | Term → rich-text definition. See [Glossary](#glossary). |
+| `symbols` | no | object | Equation symbol → very short hover tip. See [Equation symbol tips](#equation-symbol-tips). |
 | `variables` | no | object | Name → variable. See [Variables](#variables). |
 | `slides` | yes | list | At least one slide. |
 
@@ -71,6 +72,7 @@ No other top-level fields are allowed.
 | `title` | no | rich text | The slide heading. Almost every slide should have one. |
 | `subtitle` | no | rich text | A line under the title. Best on `title` and `section-break` slides. |
 | `elements` | no | list | Content, placed into the layout's slots. |
+| `symbols` | no | object | Symbol tips for this slide only; they override the deck's for the same symbol. Use when a letter means something different on this slide. |
 | `notes` | no | string | Speaker notes (plain text). |
 
 ### Element fields: `text`
@@ -202,8 +204,30 @@ In a `text` element's `content`:
 
 - KaTeX supports most LaTeX math: fractions, `\partial`, `\left( \right)`, `\underbrace{}_{}`, `\text{}`, `\dfrac`, Greek letters, `\cdot`, `\ll`, `\propto`, `\!` and `\;` spacing. For multi-line equations use `\begin{aligned} ... \end{aligned}` or `cases` inside `$$...$$`. Equation numbering and cross-references (`\label`, `\eqref`) are not supported.
 - Put units outside math: `$h$ = 5 µm`, or inside with `\text{}`: `$h = 5\,\text{µm}$`.
-- To tag an equation symbol for later hover features, `\htmlId{term-mu}{\mu}` is allowed.
+- Every symbol in the deck's `symbols` list, and every derivative, gets a hover tip automatically (next section). You don't mark anything up in the equation itself.
 - Bad LaTeX renders as red source text and is listed in the `--dev` panel. Always preview with `--dev`.
+
+### Equation symbol tips
+
+Hovering any part of an equation shows a tiny card: the symbol and what it is. This works in every equation on every slide, including live ones, chart captions and steps.
+
+```json
+"symbols": {
+  "W": "Load",
+  "\\mu": "Viscosity",
+  "h_o": "Outlet gap",
+  "\\propto": "Proportional to",
+  "Re^*": "Modified Reynolds number",
+  "\\frac{dh}{dx}": "Gap slope"
+}
+```
+
+- **Keys** are LaTeX exactly as it appears in equations, without `$` (JSON doubles the backslashes). Single letters, Greek letters, subscripted names (`h_o` also matches `h_{o}`), operators (`\\propto`, `\\ll`, `\\approx`), whole expressions (`\\int_0^1`, `Re^*`) and derivatives all work. The longest matching key wins, so `h_o` beats `h`. `\\frac`, `\\dfrac` and `\\tfrac` match each other.
+- **Tips are as short as possible**: one word when it keeps the meaning ("Load", "Viscosity", "Density"), otherwise two or three ("Outlet gap", "Proportional to"). Six words at most; explanations belong in the glossary. Tips are rich text but can't use `[[terms]]`.
+- **Derivatives get automatic tips** built from the symbols' own tips: with `p` = "Pressure" and `x` = "Position", `\\frac{dp}{dx}` and `dp/dx` read "Change in pressure with position", and `\\frac{\\partial}{\\partial x}` reads "Change with position". Partial derivatives work the same way. Add an explicit key only when a better name exists ("Gap slope").
+- List every variable and notable operator the deck's equations use. Leave out `=`, `+`, numbers and anything self-evident.
+- If a letter means something else on one slide (y is height in a velocity profile but a direction elsewhere), give that slide its own `symbols` entry.
+- Text inside `\\text{}` and hover-card content never gets tips.
 
 ### Glossary
 
@@ -211,6 +235,7 @@ In a `text` element's `content`:
 - `[[term]]` lookup is case-insensitive: `[[Viscosity]]` finds `"viscosity"`. The card title shows the glossary key as written.
 - Every `[[term]]` must have a glossary entry, or the deck fails validation.
 - Definitions are rich text (math and emphasis work) but **may not contain `[[...]]`**.
+- Bracket key quantities the first time they appear in prose too ("[[load capacity|Load capacity]] scales with..."), not just jargon.
 - Keep definitions to one or two sentences. Define a term the first time it appears on a slide; you don't need to bracket every later use.
 
 ### Variables
@@ -251,6 +276,7 @@ Beyond the JSON Schema, a deck fails if:
 - A `[[term]]` has no glossary entry, or a `[[` is never closed.
 - A `[[term]]` appears inside a glossary definition.
 - A `{{name}}` (in prose or math) refers to an undefined variable.
+- A `symbols` key contains `$` or unbalanced braces, or its tip is longer than six words.
 - A variable has both or neither of `value` and `expr`; an expression has a syntax error, uses an unknown name or function, or derived variables form a loop.
 - A `control` names a missing or derived variable, or a slider's variable lacks `min`/`max`.
 - A chart has expressions but no `x`, needs a `domain`, names a CSV that doesn't exist, or reads a column that isn't there (or isn't numeric).
