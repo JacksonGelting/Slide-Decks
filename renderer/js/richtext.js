@@ -15,6 +15,11 @@
 //
 // Output is built with DOM APIs (never innerHTML of deck text), so deck text
 // can't inject markup. KaTeX output is the only HTML inserted.
+//
+// {{var}} values are live: when a slider changes a variable, every {{var}}
+// (in prose or inside $...$ math) re-renders. See variables.js.
+
+import { Variables } from "./variables.js";
 
 const ESCAPABLE = new Set(["$", "*", "[", "]", "{", "}", "^", "\\", "@"]);
 
@@ -172,7 +177,7 @@ export function parseBlocks(src) {
 /**
  * Render context shared by all elements on a deck.
  *   glossary   {term: definition}
- *   variables  {name: {value, unit, label, ...}}
+ *   vars       Variables instance (values, formatting, change watchers)
  *   warn(msg)  collects authoring warnings (shown in --dev)
  *   footnotes  per-slide counter object {n}
  *   inCard     true while rendering hover-card content (no nested cards)
@@ -180,7 +185,8 @@ export function parseBlocks(src) {
 export function createContext(deck, warn = () => {}) {
   const glossary = new Map();
   for (const [term, def] of Object.entries(deck.glossary || {})) glossary.set(term.toLowerCase(), { term, def });
-  return { glossary, variables: deck.variables || {}, warn, footnotes: { n: 0 }, inCard: false };
+  const vars = new Variables(deck.variables || {}, warn);
+  return { deck, glossary, vars, warn, footnotes: { n: 0 }, inCard: false };
 }
 
 /** Render inline markup to a DocumentFragment. */
@@ -250,9 +256,24 @@ const KATEX_OPTIONS = {
   trust: ({ command }) => command === "\\htmlId" || command === "\\htmlClass" || command === "\\htmlData",
 };
 
+const VAR_IN_MATH = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
+
 export function renderMath(tex, display, ctx) {
   const span = document.createElement("span");
   span.className = display ? "rt-math rt-math-display" : "rt-math";
+  const names = [...tex.matchAll(VAR_IN_MATH)].map((m) => m[1]);
+  if (!names.length) return drawMath(span, tex, display, ctx);
+  // Live math: substitute current values, and redraw when they change.
+  const missing = names.filter((n) => !ctx.vars.has(n));
+  if (missing.length) ctx.warn(`{{${missing[0]}}} in "${tex}" is not a deck variable.`);
+  const draw = () => drawMath(span, tex.replace(VAR_IN_MATH, (m, n) => (ctx.vars.has(n) ? `{${ctx.vars.format(n)}}` : m)), display, ctx);
+  draw();
+  if (!ctx.inCard) ctx.vars.watch(names, draw);
+  span.classList.add("rt-math-live");
+  return span;
+}
+
+function drawMath(span, tex, display, ctx) {
   if (!window.katex) {
     span.textContent = tex;
     ctx.warn("KaTeX failed to load; math is shown as source.");
@@ -260,8 +281,10 @@ export function renderMath(tex, display, ctx) {
   }
   try {
     window.katex.render(tex, span, { ...KATEX_OPTIONS, displayMode: display });
+    span.classList.remove("rt-math-error");
+    span.removeAttribute("title");
   } catch (err) {
-    span.className += " rt-math-error";
+    span.classList.add("rt-math-error");
     span.textContent = tex;
     span.title = err.message;
     ctx.warn(`Math error in "${tex}": ${err.message}`);
@@ -289,13 +312,14 @@ function renderVar(name, ctx) {
   const span = document.createElement("span");
   span.className = "rt-var";
   span.dataset.var = name;
-  const variable = ctx.variables[name];
-  if (!variable) {
+  if (!ctx.vars.has(name)) {
     ctx.warn(`{{${name}}} is not a deck variable.`);
     span.textContent = `{{${name}}}`;
-  } else {
-    span.textContent = formatNumber(variable.value);
+    return span;
   }
+  const draw = () => { span.textContent = ctx.vars.format(name); };
+  draw();
+  if (!ctx.inCard) ctx.vars.watch([name], draw);
   return span;
 }
 

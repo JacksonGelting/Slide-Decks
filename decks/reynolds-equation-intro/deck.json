@@ -4,7 +4,11 @@
   "title": "The Reynolds Equation",
   "subtitle": "How a thin film of oil carries a load",
   "subject": "Tribology",
-  "tags": ["lubrication", "fluid film", "bearings"],
+  "tags": [
+    "lubrication",
+    "fluid film",
+    "bearings"
+  ],
   "theme": "default",
   "glossary": {
     "viscosity": "A fluid's resistance to shear, written $\\mu$ (Pa·s). Thicker oils have higher viscosity.",
@@ -17,10 +21,56 @@
     "Couette flow": "Flow driven by a moving surface dragging the fluid along. Its velocity profile across the film is a straight line.",
     "Poiseuille flow": "Flow driven by a pressure difference. Its velocity profile across the film is a parabola.",
     "wedge effect": "When the gap narrows in the direction of motion, more oil is dragged in than can leave by shear alone, so pressure rises to push the excess back.",
-    "squeeze film": "Pressure created when two surfaces approach each other and push the lubricant out of the gap. It appears as the $\\partial h / \\partial t$ term."
+    "squeeze film": "Pressure created when two surfaces approach each other and push the lubricant out of the gap. It appears as the $\\partial h / \\partial t$ term.",
+    "slider bearing": "A flat pad tilted slightly against a moving surface. The simplest bearing that uses the wedge effect.",
+    "finite differences": "A way to solve a differential equation numerically: replace derivatives with differences between values at evenly spaced points, then solve the resulting linear equations."
   },
   "variables": {
-    "h": { "label": "Film thickness", "unit": "µm", "min": 1, "max": 20, "step": 0.5, "value": 5 }
+    "h": {
+      "label": "Film thickness $h$",
+      "unit": "µm",
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "value": 5
+    },
+    "Wrel": {
+      "label": "Load relative to a 5 µm film",
+      "expr": "(5/h)^2"
+    },
+    "G": {
+      "label": "Pressure push $G$",
+      "min": -3,
+      "max": 3,
+      "step": 0.1,
+      "value": 0
+    },
+    "qr": {
+      "label": "Flow rate q / (Uh)",
+      "expr": "0.5 + G/6",
+      "digits": 2
+    },
+    "K": {
+      "label": "Taper $K$",
+      "min": 0,
+      "max": 4,
+      "step": 0.05,
+      "value": 1
+    },
+    "Ks": {
+      "label": "K, kept above zero for the load formula",
+      "expr": "max(K, 0.001)"
+    },
+    "W": {
+      "label": "Dimensionless load",
+      "expr": "6/Ks^2*(ln(1 + Ks) - 2*Ks/(2 + Ks))",
+      "digits": 3
+    },
+    "Wpct": {
+      "label": "Load as a percentage of the best taper",
+      "expr": "100*W/0.1602",
+      "digits": 0
+    }
   },
   "slides": [
     {
@@ -40,7 +90,7 @@
     },
     {
       "id": "why-thickness",
-      "layout": "title-body",
+      "layout": "body-figure",
       "title": "Why film thickness matters",
       "elements": [
         {
@@ -51,13 +101,34 @@
           "content": "Load capacity scales with [[viscosity]] and falls fast as $h$ grows: $W \\propto \\mu / h^2$."
         },
         {
-          "type": "text",
-          "id": "why-points",
+          "type": "control",
+          "id": "why-h",
           "slot": "body",
-          "content": "- Halve the [[film thickness]] and the same bearing carries about **four times** the load.\n- Double the viscosity and the load capacity doubles too.\n- This deck's reference film is $h$ = {{h}} µm, thinner than a human hair by a factor of about 15."
+          "var": "h"
+        },
+        {
+          "type": "text",
+          "id": "why-live",
+          "slot": "body",
+          "content": "At {{h}} µm the bearing carries **{{Wrel}}×** the load it carries at 5 µm. Halve the [[film thickness]] and the load goes up **four times**."
+        },
+        {
+          "type": "chart",
+          "id": "why-chart",
+          "slot": "figure",
+          "kind": "function",
+          "x": "h",
+          "expr": "(5/h)^2",
+          "xLabel": "Film thickness h (µm)",
+          "yLabel": "Load relative to h = 5 µm",
+          "yRange": [
+            0,
+            26
+          ],
+          "caption": "Same oil, same speed: only the gap changes. The dot follows the slider."
         }
       ],
-      "notes": "The inverse-square dependence on h is the headline result the rest of the deck explains."
+      "notes": "Drag the slider from 5 down to 2.5 µm and the load quadruples. Up at 10 µm it drops to a quarter. The inverse-square dependence on h is the headline result the rest of the deck explains."
     },
     {
       "id": "section-derivation",
@@ -104,6 +175,81 @@
       ]
     },
     {
+      "id": "velocity-profile",
+      "layout": "body-figure",
+      "title": "Watch the two flows add up",
+      "elements": [
+        {
+          "type": "text",
+          "id": "profile-text",
+          "slot": "body",
+          "content": "Across the film, speed is a straight line from shear plus a parabola from pressure^[$G = -\\dfrac{h^2}{2\\mu U}\\dfrac{dp}{dx}$, the pressure gradient scaled by the shear flow. Positive $G$ means pressure falls in the direction of motion.]:\n\n$$\\frac{u}{U} = (1-\\eta) + G\\,\\eta\\,(1-\\eta), \\qquad \\eta = \\frac{y}{h}$$"
+        },
+        {
+          "type": "control",
+          "id": "profile-g",
+          "slot": "body",
+          "var": "G"
+        },
+        {
+          "type": "text",
+          "id": "profile-live",
+          "slot": "body",
+          "content": "Flow rate: $q = {{qr}}\\,U h$. Push $G$ below $-1$ and oil next to the fixed wall flows **backwards**."
+        },
+        {
+          "type": "chart",
+          "id": "profile-chart",
+          "slot": "figure",
+          "kind": "function",
+          "x": "eta",
+          "domain": [
+            0,
+            1
+          ],
+          "transpose": true,
+          "series": [
+            {
+              "expr": "(1 - eta) + G*eta*(1 - eta)",
+              "name": "Shear + pressure",
+              "mark": "area"
+            },
+            {
+              "expr": "1 - eta",
+              "name": "Shear only",
+              "role": "reference"
+            }
+          ],
+          "xLabel": "Speed u/U",
+          "yLabel": "Height across the film y/h",
+          "xRange": [
+            -0.5,
+            1.5
+          ],
+          "caption": "The lower surface ($\\eta = 0$) slides at $U$; the upper one is fixed."
+        }
+      ],
+      "notes": "G = 0 is pure Couette flow, a straight line. Positive G (pressure falling in the direction of motion) bulges the profile forward; negative G holds oil back. The flow rate is the area under the curve: q/(Uh) = 1/2 + G/6."
+    },
+    {
+      "id": "derive-1d",
+      "layout": "title-body",
+      "title": "Three steps to the equation",
+      "elements": [
+        {
+          "type": "steps",
+          "id": "derive-steps",
+          "slot": "body",
+          "items": [
+            "**Start from the flow rate** through the gap, per unit width:\n\n$$q = \\frac{U h}{2} - \\frac{h^3}{12\\,\\mu}\\,\\frac{dp}{dx}$$",
+            "**Conserve mass.** In steady flow, whatever enters a slice of the film must leave it:\n\n$$\\frac{dq}{dx} = 0$$",
+            "**Substitute and tidy up.** Differentiate $q$, multiply by $12\\mu$ (constant $\\mu$ and $U$):\n\n$$\\frac{d}{dx}\\!\\left(h^3\\,\\frac{dp}{dx}\\right) = 6\\,\\mu\\, U\\,\\frac{dh}{dx}$$"
+          ]
+        }
+      ],
+      "notes": "Press the right arrow, click, or scroll to reveal each step. Going back hides them again."
+    },
+    {
       "id": "reynolds-1d",
       "layout": "equation-focus",
       "title": "The Reynolds equation in one dimension",
@@ -118,7 +264,7 @@
           "type": "text",
           "id": "eq-1d-caption",
           "slot": "body",
-          "content": "Mass conservation says $dq/dx = 0$. Substituting the flow rate gives one equation for the pressure $p(x)$ in a film of known shape $h(x)$."
+          "content": "One equation for the pressure $p(x)$ in a film of known shape $h(x)$. Pressure only builds where $dh/dx \\neq 0$."
         }
       ],
       "notes": "Steady, incompressible, isoviscous film."
@@ -141,6 +287,159 @@
           "content": "If the surfaces are parallel, $dh/dx = 0$ and the right side vanishes: **no pressure builds** and nothing holds the surfaces apart.\n\nA gap that narrows in the direction of motion creates the [[wedge effect]]. That is why bearing pads tilt and journal bearings run off-centre."
         }
       ]
+    },
+    {
+      "id": "wedge-pressure",
+      "layout": "body-figure",
+      "title": "A tilted pad builds pressure",
+      "elements": [
+        {
+          "type": "text",
+          "id": "wedge-text",
+          "slot": "body",
+          "content": "A [[slider bearing]] pad narrows from inlet $h_i$ to outlet $h_o$. Its taper is $K = h_i/h_o - 1$. With $p = 0$ at both ends the equation solves exactly:\n\n$$P = \\frac{6K\\,X(1-X)}{(2+K)\\,\\bigl(1 + K(1-X)\\bigr)^2}$$"
+        },
+        {
+          "type": "control",
+          "id": "wedge-k",
+          "slot": "body",
+          "var": "K"
+        },
+        {
+          "type": "text",
+          "id": "wedge-live",
+          "slot": "body",
+          "content": "Load $W = \\int_0^1 P\\,dX = {{W}}$. Set $K$ to 0: parallel surfaces, **no pressure at all**."
+        },
+        {
+          "type": "chart",
+          "id": "wedge-chart",
+          "slot": "figure",
+          "kind": "function",
+          "x": "X",
+          "domain": [
+            0,
+            1
+          ],
+          "series": [
+            {
+              "expr": "6*K*X*(1 - X)/((2 + K)*(1 + K*(1 - X))^2)",
+              "name": "Pressure P",
+              "mark": "area"
+            },
+            {
+              "expr": "1 + K*(1 - X)",
+              "name": "Gap h/hₒ",
+              "role": "reference",
+              "axis": "right"
+            }
+          ],
+          "xLabel": "Position along the pad x/L",
+          "yLabel": "Pressure P",
+          "y2Label": "Gap h/hₒ",
+          "yRange": [
+            0,
+            0.28
+          ],
+          "y2Range": [
+            0,
+            5.6
+          ],
+          "caption": "$X = x/L$ and $P = p\\,h_o^2/(\\mu U L)$. Oil enters at the left."
+        }
+      ],
+      "notes": "Steeper tapers push the pressure peak toward the outlet. At K = 0 the right side of the Reynolds equation vanishes and the pressure is zero everywhere: the wedge effect in action."
+    },
+    {
+      "id": "best-taper",
+      "layout": "body-figure",
+      "title": "There is a best taper",
+      "elements": [
+        {
+          "type": "text",
+          "id": "taper-lead",
+          "slot": "body",
+          "size": "large",
+          "content": "Too little taper builds no pressure; too much lets the oil escape."
+        },
+        {
+          "type": "control",
+          "id": "taper-k",
+          "slot": "body",
+          "var": "K"
+        },
+        {
+          "type": "text",
+          "id": "taper-live",
+          "slot": "body",
+          "content": "At $K$ = {{K}} the pad carries **{{Wpct}}%** of the most it can. The peak sits near $K \\approx 1.2$, an inlet gap about 2.2 times the outlet."
+        },
+        {
+          "type": "chart",
+          "id": "taper-chart",
+          "slot": "figure",
+          "kind": "function",
+          "x": "K",
+          "expr": "W",
+          "xLabel": "Taper K = hᵢ/hₒ − 1",
+          "yLabel": "Load W",
+          "yRange": [
+            0,
+            0.18
+          ],
+          "caption": "$W = \\dfrac{6}{K^2}\\left[\\ln(1+K) - \\dfrac{2K}{2+K}\\right]$. This slider and the previous slide's share one $K$."
+        }
+      ],
+      "notes": "The optimum is K = 1.19 with W = 0.160. Bearing designers aim near it, then check that the outlet film stays thick enough for the surface roughness."
+    },
+    {
+      "id": "numerical-check",
+      "layout": "body-figure",
+      "title": "Checking a numerical solution",
+      "elements": [
+        {
+          "type": "text",
+          "id": "numeric-text",
+          "slot": "body",
+          "content": "Real bearings rarely have exact solutions, so the equation is solved with [[finite differences]]:\n\n- Split the pad into 10 strips.\n- Write the equation at each inner point, with $p = 0$ at both ends.\n- Solve the 9 linear equations.\n\nEven this coarse grid lands within **half a percent** of the exact peak."
+        },
+        {
+          "type": "chart",
+          "id": "numeric-chart",
+          "slot": "figure",
+          "kind": "function",
+          "x": "X",
+          "domain": [
+            0,
+            1
+          ],
+          "data": "assets/slider-fd-k1.csv",
+          "series": [
+            {
+              "expr": "6*X*(1 - X)/(3*(2 - X)^2)",
+              "name": "Exact"
+            },
+            {
+              "x": "X",
+              "y": "P",
+              "name": "Finite differences, 10 strips",
+              "mark": "points"
+            }
+          ],
+          "xLabel": "Position along the pad x/L",
+          "yLabel": "Pressure P",
+          "xRange": [
+            0,
+            1
+          ],
+          "yRange": [
+            0,
+            0.28
+          ],
+          "caption": "Taper $K = 1$. Hover a point to compare it with the curve."
+        }
+      ],
+      "notes": "The data points come from assets/slider-fd-k1.csv: a central-difference solve with H^3 evaluated at the half nodes. The largest error is 0.001 against a peak of 0.25."
     },
     {
       "id": "reynolds-2d",
@@ -170,7 +469,7 @@
           "type": "text",
           "id": "takeaways-list",
           "slot": "body",
-          "content": "1. The Reynolds equation is mass conservation for a thin, viscous film.\n2. Pressure only builds when the gap changes shape: a wedge, or surfaces squeezing together.\n3. Load capacity grows with $\\mu U$ and falls roughly as $1/h^2$.\n4. Solve it for $p(x, y)$, then integrate $p$ over the pad to get the load $W$."
+          "content": "1. The Reynolds equation is mass conservation for a thin, viscous film.\n2. Pressure only builds when the gap changes shape: a wedge, or surfaces squeezing together.\n3. Load capacity grows with $\\mu U$ and falls roughly as $1/h^2$.\n4. A tilted pad carries the most load at a taper of about $K = 1.2$.\n5. Solve it for $p(x, y)$, often numerically, then integrate $p$ to get the load $W$."
         }
       ]
     }

@@ -43,6 +43,7 @@ def register_scheme() -> None:
         | QWebEngineUrlScheme.Flag.LocalScheme
         | QWebEngineUrlScheme.Flag.LocalAccessAllowed
         | QWebEngineUrlScheme.Flag.CorsEnabled  # ES modules need CORS
+        | QWebEngineUrlScheme.Flag.FetchApiAllowed  # charts fetch CSV data from the deck folder
     )
     QWebEngineUrlScheme.registerScheme(scheme)
 

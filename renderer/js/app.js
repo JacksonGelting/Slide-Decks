@@ -88,7 +88,7 @@ async function boot() {
   const viewer = new DeckViewer({
     stage: $("stage"), canvas: $("canvas"), nav: $("nav"), devPanel: $("dev-panel"), dev: settings.dev,
   });
-  viewer.mount(result.deck);
+  viewer.mount(result.deck, { assetBase: result.assetBase });
   viewer.bindInput();
   window.slideDecks = viewer; // handy in the dev tools console
 }

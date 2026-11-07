@@ -20,21 +20,27 @@ export class DeckViewer {
     this.scale = 1;
   }
 
-  mount(deck) {
+  mount(deck, { assetBase = "/deck/" } = {}) {
     this.deck = deck;
     this.warnings = [];
     this.ctx = createContext(deck, (msg) => this.warn(msg));
+    this.ctx.assetBase = assetBase;
+    let mounted;
+    this.ctx.whenMounted = new Promise((resolve) => { mounted = resolve; });
     this.canvas.replaceChildren();
     this.slides = deck.slides.map((slide, i) => this.buildSlide(slide, i));
     this.canvas.append(...this.slides);
     this.cards = installHoverCards(this.canvas, this.ctx, () => this.scale);
+    // Charts size themselves to their slot, so wait for layout and fonts.
+    const fontsReady = document.fonts?.ready ?? Promise.resolve();
+    fontsReady.then(() => requestAnimationFrame(() => mounted()));
 
     this.fit();
     window.addEventListener("resize", () => this.fit());
     this.go(this.initialIndex(), { instant: true });
     this.nav.hidden = false;
     document.title = `${deck.title} · Slide Decks`;
-    if (this.dev) requestAnimationFrame(() => this.checkOverflow());
+    if (this.dev) this.ctx.whenMounted.then(() => setTimeout(() => this.checkOverflow(), 400));
   }
 
   warn(msg) {
@@ -108,9 +114,16 @@ export class DeckViewer {
     return m ? Math.min(Math.max(Number(m[1]) - 1, 0), this.slides.length - 1) : 0;
   }
 
-  go(target, { instant = false } = {}) {
+  stepsOn(index) {
+    return [...(this.slides[index]?.querySelectorAll(".el-steps") ?? [])].map((n) => n._steps).filter(Boolean);
+  }
+
+  go(target, { instant = false, revealAll = false } = {}) {
     const next = Math.min(Math.max(target, 0), this.slides.length - 1);
     this.cards?.hide();
+    if (next !== this.index || instant) {
+      for (const s of this.stepsOn(next)) (revealAll ? s.revealAll() : s.reset());
+    }
     this.slides.forEach((s, i) => {
       s.classList.toggle("is-current", i === next);
       s.classList.toggle("no-motion", instant);
@@ -123,12 +136,23 @@ export class DeckViewer {
     notifySlide(next);
   }
 
-  next() { this.go(this.index + 1); }
-  prev() { this.go(this.index - 1); }
+  /** Forward: reveal the next step on this slide if any, else the next slide. */
+  next() {
+    if (this.stepsOn(this.index).some((s) => s.advance())) return;
+    this.go(this.index + 1);
+  }
+
+  /** Back: hide the last revealed step, else go to the previous slide fully revealed. */
+  prev() {
+    const steps = this.stepsOn(this.index).reverse();
+    if (steps.some((s) => s.retreat())) return;
+    if (this.index > 0) this.go(this.index - 1, { revealAll: true });
+  }
 
   bindInput() {
     document.addEventListener("keydown", (e) => {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.target.closest?.("input, select, textarea")) return; // sliders own their keys
       const keys = {
         ArrowRight: () => this.next(), ArrowDown: () => this.next(), PageDown: () => this.next(),
         " ": () => this.next(), ArrowLeft: () => this.prev(), ArrowUp: () => this.prev(),
@@ -139,7 +163,7 @@ export class DeckViewer {
     });
     this.stage.addEventListener("click", (e) => {
       if (window.getSelection()?.toString()) return; // let people select text
-      if (e.target.closest("a, button, input, .rt-term, .rt-footnote, .hovercard")) return;
+      if (e.target.closest("a, button, input, label, .rt-term, .rt-footnote, .hovercard, .el-control, .chart-plot")) return;
       const rect = this.stage.getBoundingClientRect();
       if (e.clientX - rect.left < rect.width * 0.25) this.prev(); else this.next();
     });
@@ -151,9 +175,53 @@ export class DeckViewer {
       if (Math.abs(dx) > 60) (dx < 0 ? this.next() : this.prev());
       touchX = null;
     });
+    this.bindWheel();
     onGoToSlide((i) => this.go(i));
     this.nav.querySelector("#nav-prev").addEventListener("click", () => this.prev());
     this.nav.querySelector("#nav-next").addEventListener("click", () => this.next());
+  }
+
+  /**
+   * Scroll wheel / trackpad: down = forward, up = back. One gesture moves
+   * one step: a gesture ends after a short pause in wheel events, so a fast
+   * spin or a trackpad's momentum scroll doesn't skip several slides.
+   * Wheel events over controls, charts and scrollable boxes are left alone.
+   */
+  bindWheel() {
+    const THRESHOLD = 40;   // px of scroll before a gesture counts
+    const GESTURE_GAP = 220; // ms of quiet that ends a gesture
+    let acc = 0;
+    let last = 0;
+    let used = false;
+    this.stage.addEventListener("wheel", (e) => {
+      if (e.ctrlKey) return; // pinch-zoom
+      if (e.target.closest?.(".el-control, .chart-plot, input, .hovercard") || this.scrollsInside(e)) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now - last > GESTURE_GAP) { acc = 0; used = false; }
+      last = now;
+      if (used) return;
+      const unit = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1;
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      acc += delta * unit;
+      if (Math.abs(acc) >= THRESHOLD) {
+        used = true;
+        if (acc > 0) this.next(); else this.prev();
+      }
+    }, { passive: false });
+  }
+
+  /** True when the wheel is over an element that can still scroll that way. */
+  scrollsInside(e) {
+    for (let el = e.target; el && el !== this.stage; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight + 1) {
+        const style = getComputedStyle(el).overflowY;
+        if (style === "auto" || style === "scroll") {
+          if (e.deltaY < 0 ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1) return true;
+        }
+      }
+    }
+    return false;
   }
 
   // ------------------------------------------------------------- scaling

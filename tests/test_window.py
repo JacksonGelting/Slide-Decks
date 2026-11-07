@@ -22,6 +22,9 @@ PROBE = """JSON.stringify({
   slides: document.querySelectorAll('.slide').length,
   terms: document.querySelectorAll('.rt-term').length,
   math: document.querySelectorAll('.katex').length,
+  charts: document.querySelectorAll('.el-chart').length,
+  drawn: document.querySelectorAll('.el-chart.is-drawn').length,
+  sliders: document.querySelectorAll('.el-control input[type=range]').length,
   error: !document.getElementById('message').hidden,
 })"""
 
@@ -42,7 +45,7 @@ def probe(window, timeout_ms=15000):
         def got(result):
             if result:
                 data = json.loads(result)
-                if data["slides"] or data["error"]:
+                if (data["slides"] and data["drawn"] == data["charts"]) or data["error"]:
                     state.update(data)
                     loop.quit()
                     return
@@ -55,13 +58,38 @@ def probe(window, timeout_ms=15000):
     return state
 
 
+def run_js(window, script, timeout_ms=5000):
+    loop = QEventLoop()
+    out = {}
+
+    def got(result):
+        out["v"] = result
+        loop.quit()
+
+    window.view.page().runJavaScript(script, 0, got)
+    QTimer.singleShot(timeout_ms, loop.quit)
+    loop.exec()
+    return out.get("v")
+
+
 def test_opens_sample_deck(app):
     window = MainWindow(resolve_deck_path("reynolds-equation-intro"))
     window.show()
     state = probe(window)
-    assert state.get("slides") == 9 and not state["error"]
+    slides = len(json.loads((resolve_deck_path("reynolds-equation-intro")).read_text(encoding="utf-8"))["slides"])
+    assert state.get("slides") == slides and not state["error"]
     assert state["terms"] > 0 and state["math"] > 0
-    assert window.outline.list.count() == 9
+    assert state["charts"] > 0 and state["drawn"] == state["charts"], "Plotly charts didn't draw"
+    assert state["sliders"] > 0
+    assert window.outline.list.count() == slides
+
+    # Moving a slider updates live values in the Qt web view.
+    live = run_js(window, """(() => {
+      window.slideDecks.ctx.vars.set('h', 2.5);
+      return document.querySelector('#el-why-live .rt-var').textContent + '|'
+        + document.querySelector('#el-why-h output').textContent;
+    })()""")
+    assert live == "2.5|2.5 µm"
     window.close()
 
 
