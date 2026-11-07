@@ -494,6 +494,21 @@ ol.steps-list > .step::before {
 
 .rt-var { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent-ink); }
 
+/* Equation symbols with hover tips (deck "symbols" and derivatives) */
+.rt-sym {
+  cursor: help;
+  border-radius: 6px;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.rt-sym:hover,
+.rt-sym.is-active {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent-ink);
+}
+.layout-section-break .rt-sym:hover,
+.layout-section-break .rt-sym.is-active { background: rgb(255 255 255 / 0.18); box-shadow: none; color: #fff; }
+
 /* ------------------------------------------------------------ hover card */
 
 .hovercard {
@@ -527,6 +542,26 @@ ol.steps-list > .step::before {
 }
 .hovercard-body p { margin: 0; }
 .hovercard-body p + p { margin-top: var(--space-2); }
+/* Compact card for equation symbols: the symbol, then a word or two. */
+.hovercard.is-compact {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  max-width: 640px;
+  padding: 10px 22px 12px;
+  border-top-width: 4px;
+  font-size: var(--text-small);
+}
+.hovercard.is-compact .hovercard-title {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent-ink);
+}
+.hovercard.is-compact .hovercard-body { color: var(--ink); }
 @keyframes card-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* ------------------------------------------------------------ nav chrome */

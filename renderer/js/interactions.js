@@ -34,6 +34,7 @@ export function installHoverCards(canvas, ctx, getScale) {
     anchor?.removeAttribute("aria-describedby");
     anchor = target;
     card.replaceChildren();
+    card.classList.toggle("is-compact", Boolean(target._card.compact));
     const title = document.createElement("div");
     title.className = "hovercard-title";
     title.append(renderInline(target._card.title, { ...ctx, inCard: true }));

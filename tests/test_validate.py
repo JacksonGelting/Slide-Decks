@@ -227,6 +227,18 @@ def test_chart_csv_columns(tmp_path):
     assert '"P"' not in text
 
 
+def test_symbol_tips(tmp_path):
+    deck = minimal(symbols={"W": "Load", "\\mu": "Viscosity", "$h$": "Gap", "\\frac{a}{b": "Bad",
+                            "q": "A tip that goes on for far too many words"})
+    deck["slides"][0]["symbols"] = {"y": "[[term]]"}
+    text = messages(load_deck(write_deck(tmp_path, deck)))
+    assert "without $ signs" in text
+    assert "don't balance" in text
+    assert "few words at most" in text
+    assert "inside a symbol tip" in text
+    assert 'symbols > "W"' not in text and 'symbols > "\\mu"' not in text
+
+
 def test_steps_initial_too_large(tmp_path):
     deck = with_elements(minimal(), {"type": "steps", "slot": "body", "items": ["a"], "initial": 3})
     assert "more than the 1 step(s)" in messages(load_deck(write_deck(tmp_path, deck)))

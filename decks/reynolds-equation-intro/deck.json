@@ -2,28 +2,30 @@
   "schemaVersion": 1,
   "id": "reynolds-equation-intro",
   "title": "The Reynolds Equation",
-  "subtitle": "How a thin film of oil carries a load",
+  "subtitle": "How a thin fluid film keeps seal faces apart",
   "subject": "Tribology",
   "tags": [
-    "lubrication",
+    "sealing",
     "fluid film",
-    "bearings"
+    "mechanical seals"
   ],
   "theme": "default",
   "glossary": {
-    "viscosity": "A fluid's resistance to shear, written $\\mu$ (Pa·s). Thicker oils have higher viscosity.",
-    "film thickness": "The gap $h$ between the two surfaces, filled with lubricant. In real bearings it is a few micrometres.",
-    "hydrodynamic lubrication": "Lubrication where the surfaces' own motion drags oil into the gap and builds enough pressure to keep them fully apart.",
-    "Newtonian": "A fluid whose shear stress is proportional to shear rate: $\\tau = \\mu \\, du/dy$. Most mineral oils behave this way at moderate shear.",
+    "viscosity": "A fluid's resistance to shear, written $\\mu$ (Pa·s). Thicker fluids have higher viscosity.",
+    "film thickness": "The gap $h$ between the two seal faces, filled with fluid. In mechanical face seals it is typically a few micrometres or less.",
+    "hydrodynamic lubrication": "Lubrication where the surfaces' own motion drags fluid into the gap and builds enough pressure to keep them fully apart.",
+    "Newtonian": "A fluid whose shear stress is proportional to shear rate: $\\tau = \\mu \\, du/dy$. Water, air and most mineral oils behave this way at moderate shear.",
     "laminar": "Smooth flow in parallel layers, with no turbulent mixing.",
     "no-slip": "The fluid touching a surface moves at exactly that surface's speed.",
     "Reynolds number": "The ratio of inertial to viscous forces in a flow. For thin films the useful version is the modified Reynolds number $Re^* = \\dfrac{\\rho U h}{\\mu}\\cdot\\dfrac{h}{L}$.",
     "Couette flow": "Flow driven by a moving surface dragging the fluid along. Its velocity profile across the film is a straight line.",
     "Poiseuille flow": "Flow driven by a pressure difference. Its velocity profile across the film is a parabola.",
-    "wedge effect": "When the gap narrows in the direction of motion, more oil is dragged in than can leave by shear alone, so pressure rises to push the excess back.",
-    "squeeze film": "Pressure created when two surfaces approach each other and push the lubricant out of the gap. It appears as the $\\partial h / \\partial t$ term.",
-    "slider bearing": "A flat pad tilted slightly against a moving surface. The simplest bearing that uses the wedge effect.",
-    "finite differences": "A way to solve a differential equation numerically: replace derivatives with differences between values at evenly spaced points, then solve the resulting linear equations."
+    "wedge effect": "When the gap narrows in the direction of motion, more fluid is dragged in than can leave by shear alone, so pressure rises to push the excess back.",
+    "squeeze film": "Pressure created when two surfaces approach each other and push the fluid out of the gap. It appears as the $\\partial h / \\partial t$ term.",
+    "finite differences": "A way to solve a differential equation numerically: replace derivatives with differences between values at evenly spaced points, then solve the resulting linear equations.",
+    "tapered face": "A seal face machined with a slight slope, so the gap narrows in the direction of sliding. It uses the wedge effect to lift the faces apart.",
+    "sealing film": "The thin layer of fluid between the faces of a seal. Thin enough to limit leakage, thick enough to keep the faces from touching.",
+    "load capacity": "The force the pressurized film can carry. In a seal, it is the film's opening force pushing the faces apart."
   },
   "variables": {
     "h": {
@@ -77,13 +79,13 @@
       "id": "title",
       "layout": "title",
       "title": "The Reynolds Equation",
-      "subtitle": "How a thin film of oil carries a load",
+      "subtitle": "How a thin fluid film keeps seal faces apart",
       "elements": [
         {
           "type": "text",
           "id": "title-tagline",
           "slot": "body",
-          "content": "Tribology · An introduction to [[hydrodynamic lubrication]]"
+          "content": "Sealing · How a [[sealing film]] keeps seal faces apart"
         }
       ],
       "notes": "Hover any underlined term for its definition."
@@ -98,7 +100,7 @@
           "id": "why-lead",
           "slot": "body",
           "size": "large",
-          "content": "Load capacity scales with [[viscosity]] and falls fast as $h$ grows: $W \\propto \\mu / h^2$."
+          "content": "[[load capacity|Load capacity]] scales with [[viscosity]] and falls fast as $h$ grows: $W \\propto \\mu / h^2$."
         },
         {
           "type": "control",
@@ -110,7 +112,7 @@
           "type": "text",
           "id": "why-live",
           "slot": "body",
-          "content": "At {{h}} µm the bearing carries **{{Wrel}}×** the load it carries at 5 µm. Halve the [[film thickness]] and the load goes up **four times**."
+          "content": "At {{h}} µm the film carries **{{Wrel}}×** the load it carries at 5 µm. Halve the [[film thickness]] and the load goes up **four times**."
         },
         {
           "type": "chart",
@@ -125,7 +127,7 @@
             0,
             26
           ],
-          "caption": "Same oil, same speed: only the gap changes. The dot follows the slider."
+          "caption": "Same fluid, same speed: only the gap changes. The dot follows the slider."
         }
       ],
       "notes": "Drag the slider from 5 down to 2.5 µm and the load quadruples. Up at 10 µm it drops to a quarter. The inverse-square dependence on h is the headline result the rest of the deck explains."
@@ -151,7 +153,7 @@
           "type": "text",
           "id": "assumptions-list",
           "slot": "left",
-          "content": "- The film is thin: $h \\ll L$, so pressure is constant across it.\n- The lubricant is [[Newtonian]] with constant $\\mu$.\n- The flow is [[laminar]] and [[no-slip]] holds at both walls.\n- Inertia and gravity are negligible next to viscous forces."
+          "content": "- The film is thin: $h \\ll L$, so pressure is constant across it.\n- The fluid is [[Newtonian]] with constant $\\mu$.\n- The flow is [[laminar]] and [[no-slip]] holds at both walls.\n- Inertia and gravity are negligible next to viscous forces."
         },
         {
           "type": "text",
@@ -164,13 +166,13 @@
     {
       "id": "two-flows",
       "layout": "title-body",
-      "title": "Two ways oil moves through the gap",
+      "title": "Two ways fluid moves through the gap",
       "elements": [
         {
           "type": "text",
           "id": "two-flows-text",
           "slot": "body",
-          "content": "The lower surface slides at speed $U$. The flow rate per unit width, $q$, adds a shear-driven [[Couette flow]] and a pressure-driven [[Poiseuille flow]]:\n\n$$q \\;=\\; \\underbrace{\\frac{U h}{2}}_{\\text{shear}} \\;-\\; \\underbrace{\\frac{h^3}{12\\,\\mu}\\,\\frac{dp}{dx}}_{\\text{pressure}}$$\n\nPressure pushes oil from high to low $p$, which is why the second term carries a minus sign."
+          "content": "The lower face slides at speed $U$. The flow rate per unit width, $q$, adds a shear-driven [[Couette flow]] and a pressure-driven [[Poiseuille flow]]:\n\n$$q \\;=\\; \\underbrace{\\frac{U h}{2}}_{\\text{shear}} \\;-\\; \\underbrace{\\frac{h^3}{12\\,\\mu}\\,\\frac{dp}{dx}}_{\\text{pressure}}$$\n\nPressure pushes fluid from high to low $p$, which is why the second term carries a minus sign."
         }
       ]
     },
@@ -195,7 +197,7 @@
           "type": "text",
           "id": "profile-live",
           "slot": "body",
-          "content": "Flow rate: $q = {{qr}}\\,U h$. Push $G$ below $-1$ and oil next to the fixed wall flows **backwards**."
+          "content": "Flow rate: $q = {{qr}}\\,U h$. Push $G$ below $-1$ and fluid next to the fixed face flows **backwards**."
         },
         {
           "type": "chart",
@@ -226,10 +228,13 @@
             -0.5,
             1.5
           ],
-          "caption": "The lower surface ($\\eta = 0$) slides at $U$; the upper one is fixed."
+          "caption": "The lower face ($\\eta = 0$) slides at $U$; the upper one is fixed."
         }
       ],
-      "notes": "G = 0 is pure Couette flow, a straight line. Positive G (pressure falling in the direction of motion) bulges the profile forward; negative G holds oil back. The flow rate is the area under the curve: q/(Uh) = 1/2 + G/6."
+      "notes": "G = 0 is pure Couette flow, a straight line. Positive G (pressure falling in the direction of motion) bulges the profile forward; negative G holds fluid back. The flow rate is the area under the curve: q/(Uh) = 1/2 + G/6.",
+      "symbols": {
+        "y": "Height"
+      }
     },
     {
       "id": "derive-1d",
@@ -278,26 +283,26 @@
           "type": "text",
           "id": "reading-left",
           "slot": "left",
-          "content": "**Left side:** how pressure gradients redistribute oil. The $h^3$ factor means a thin film strongly resists being squeezed through.\n\n**Right side:** the source of pressure. It is driven by sliding speed $U$, [[viscosity]] $\\mu$, and the slope of the gap $dh/dx$."
+          "content": "**Left side:** how pressure gradients redistribute fluid. The $h^3$ factor means a thin film strongly resists being squeezed through.\n\n**Right side:** the source of pressure. It is driven by sliding speed $U$, [[viscosity]] $\\mu$, and the slope of the gap $dh/dx$."
         },
         {
           "type": "text",
           "id": "reading-right",
           "slot": "right",
-          "content": "If the surfaces are parallel, $dh/dx = 0$ and the right side vanishes: **no pressure builds** and nothing holds the surfaces apart.\n\nA gap that narrows in the direction of motion creates the [[wedge effect]]. That is why bearing pads tilt and journal bearings run off-centre."
+          "content": "If the faces are parallel, $dh/dx = 0$ and the right side vanishes: **no pressure builds** and nothing holds the faces apart.\n\nA gap that narrows in the direction of motion creates the [[wedge effect]]. That is why hydrodynamic seals have tapered or wavy faces."
         }
       ]
     },
     {
       "id": "wedge-pressure",
       "layout": "body-figure",
-      "title": "A tilted pad builds pressure",
+      "title": "A tapered face builds pressure",
       "elements": [
         {
           "type": "text",
           "id": "wedge-text",
           "slot": "body",
-          "content": "A [[slider bearing]] pad narrows from inlet $h_i$ to outlet $h_o$. Its taper is $K = h_i/h_o - 1$. With $p = 0$ at both ends the equation solves exactly:\n\n$$P = \\frac{6K\\,X(1-X)}{(2+K)\\,\\bigl(1 + K(1-X)\\bigr)^2}$$"
+          "content": "A [[tapered face]] narrows the gap from inlet $h_i$ to outlet $h_o$. Its taper is $K = h_i/h_o - 1$. With $p = 0$ at both edges the equation solves exactly:\n\n$$P = \\frac{6K\\,X(1-X)}{(2+K)\\,\\bigl(1 + K(1-X)\\bigr)^2}$$"
         },
         {
           "type": "control",
@@ -309,7 +314,7 @@
           "type": "text",
           "id": "wedge-live",
           "slot": "body",
-          "content": "Load $W = \\int_0^1 P\\,dX = {{W}}$. Set $K$ to 0: parallel surfaces, **no pressure at all**."
+          "content": "Load $W = \\int_0^1 P\\,dX = {{W}}$. Set $K$ to 0: parallel faces, **no pressure at all**."
         },
         {
           "type": "chart",
@@ -334,7 +339,7 @@
               "axis": "right"
             }
           ],
-          "xLabel": "Position along the pad x/L",
+          "xLabel": "Position across the face x/L",
           "yLabel": "Pressure P",
           "y2Label": "Gap h/hₒ",
           "yRange": [
@@ -345,7 +350,7 @@
             0,
             5.6
           ],
-          "caption": "$X = x/L$ and $P = p\\,h_o^2/(\\mu U L)$. Oil enters at the left."
+          "caption": "$X = x/L$ and $P = p\\,h_o^2/(\\mu U L)$. Fluid enters at the left."
         }
       ],
       "notes": "Steeper tapers push the pressure peak toward the outlet. At K = 0 the right side of the Reynolds equation vanishes and the pressure is zero everywhere: the wedge effect in action."
@@ -360,7 +365,7 @@
           "id": "taper-lead",
           "slot": "body",
           "size": "large",
-          "content": "Too little taper builds no pressure; too much lets the oil escape."
+          "content": "Too little taper builds no pressure; too much lets the fluid escape."
         },
         {
           "type": "control",
@@ -372,7 +377,7 @@
           "type": "text",
           "id": "taper-live",
           "slot": "body",
-          "content": "At $K$ = {{K}} the pad carries **{{Wpct}}%** of the most it can. The peak sits near $K \\approx 1.2$, an inlet gap about 2.2 times the outlet."
+          "content": "At $K$ = {{K}} the face carries **{{Wpct}}%** of the most it can. The peak sits near $K \\approx 1.2$, an inlet gap about 2.2 times the outlet."
         },
         {
           "type": "chart",
@@ -390,7 +395,7 @@
           "caption": "$W = \\dfrac{6}{K^2}\\left[\\ln(1+K) - \\dfrac{2K}{2+K}\\right]$. This slider and the previous slide's share one $K$."
         }
       ],
-      "notes": "The optimum is K = 1.19 with W = 0.160. Bearing designers aim near it, then check that the outlet film stays thick enough for the surface roughness."
+      "notes": "The optimum is K = 1.19 with W = 0.160. Seal designers aim near it, then check that the outlet film stays thick enough for the surface roughness."
     },
     {
       "id": "numerical-check",
@@ -401,7 +406,7 @@
           "type": "text",
           "id": "numeric-text",
           "slot": "body",
-          "content": "Real bearings rarely have exact solutions, so the equation is solved with [[finite differences]]:\n\n- Split the pad into 10 strips.\n- Write the equation at each inner point, with $p = 0$ at both ends.\n- Solve the 9 linear equations.\n\nEven this coarse grid lands within **half a percent** of the exact peak."
+          "content": "Real seal faces rarely have exact solutions, so the equation is solved with [[finite differences]]:\n\n- Split the face into 10 strips.\n- Write the equation at each inner point, with $p = 0$ at both edges.\n- Solve the 9 linear equations.\n\nEven this coarse grid lands within **half a percent** of the exact peak."
         },
         {
           "type": "chart",
@@ -426,7 +431,7 @@
               "mark": "points"
             }
           ],
-          "xLabel": "Position along the pad x/L",
+          "xLabel": "Position across the face x/L",
           "yLabel": "Pressure P",
           "xRange": [
             0,
@@ -456,7 +461,7 @@
           "type": "text",
           "id": "eq-2d-caption",
           "slot": "body",
-          "content": "Two directions, compressible lubricant (density $\\rho$), both surfaces moving, plus a [[squeeze film]] term for surfaces that approach each other."
+          "content": "Two directions, compressible fluid (density $\\rho$), both faces moving, plus a [[squeeze film]] term for faces that approach each other."
         }
       ]
     },
@@ -469,9 +474,39 @@
           "type": "text",
           "id": "takeaways-list",
           "slot": "body",
-          "content": "1. The Reynolds equation is mass conservation for a thin, viscous film.\n2. Pressure only builds when the gap changes shape: a wedge, or surfaces squeezing together.\n3. Load capacity grows with $\\mu U$ and falls roughly as $1/h^2$.\n4. A tilted pad carries the most load at a taper of about $K = 1.2$.\n5. Solve it for $p(x, y)$, often numerically, then integrate $p$ to get the load $W$."
+          "content": "1. The Reynolds equation is mass conservation for a thin, viscous film.\n2. Pressure only builds when the gap changes shape: a wedge, or surfaces squeezing together.\n3. Load capacity grows with $\\mu U$ and falls roughly as $1/h^2$.\n4. A tapered seal face carries the most load at a taper of about $K = 1.2$.\n5. Solve it for $p(x, y)$, often numerically, then integrate $p$ to get the opening load $W$."
         }
       ]
     }
-  ]
+  ],
+  "symbols": {
+    "W": "Load",
+    "\\propto": "Proportional to",
+    "\\mu": "Viscosity",
+    "h": "Film thickness",
+    "h_i": "Inlet gap",
+    "h_o": "Outlet gap",
+    "U": "Sliding speed",
+    "U_1": "Face 1 speed",
+    "U_2": "Face 2 speed",
+    "u": "Fluid speed",
+    "q": "Flow rate",
+    "p": "Pressure",
+    "P": "Scaled pressure",
+    "x": "Position",
+    "X": "Scaled position",
+    "y": "Crosswise position",
+    "L": "Face length",
+    "t": "Time",
+    "\\rho": "Density",
+    "\\eta": "Height fraction",
+    "G": "Pressure push",
+    "K": "Taper",
+    "Re^*": "Modified Reynolds number",
+    "\\ll": "Much less than",
+    "\\approx": "About",
+    "\\neq": "Not equal to",
+    "\\int_0^1": "Integral across the face",
+    "\\ln": "Natural log"
+  }
 }

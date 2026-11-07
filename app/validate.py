@@ -491,6 +491,8 @@ def check_references(deck: dict[str, Any], deck_dir: Path) -> list[dict[str, str
     check_rich(deck["title"], "title")
     for key, definition in deck.get("glossary", {}).items():
         check_rich(definition, f'glossary > "{key}"', allow_terms=False)
+    for key, tip in deck.get("symbols", {}).items():
+        problems.extend(check_symbol(key, tip, f'symbols > "{key}"', variables))
 
     for s_index, slide in enumerate(deck["slides"]):
         s_where = _slide_label(s_index, slide)
@@ -498,6 +500,8 @@ def check_references(deck: dict[str, Any], deck_dir: Path) -> list[dict[str, str
         for field in ("title", "subtitle"):
             if field in slide:
                 check_rich(slide[field], f"{s_where} > {field}")
+        for key, tip in slide.get("symbols", {}).items():
+            problems.extend(check_symbol(key, tip, f'{s_where} > symbols > "{key}"', variables))
 
         allowed = LAYOUT_SLOTS[slide["layout"]]
         for e_index, element in enumerate(slide.get("elements", [])):
@@ -552,6 +556,22 @@ def check_rich_text(value: str, where: str, glossary: dict[str, str] | None,
         if name not in variables:
             problems.append(_issue(where, f'{{{{{name}}}}} refers to a variable that is not defined in the '
                                           "deck's variables."))
+    return problems
+
+
+def check_symbol(key: str, tip: str, where: str, variables: set[str]) -> list[dict[str, str]]:
+    """A symbol key is LaTeX (no $ delimiters); its tip is short rich text shown in a hover card."""
+    problems: list[dict[str, str]] = []
+    if "$" in key:
+        problems.append(_issue(where, "Write the symbol as bare LaTeX, without $ signs: \"\\\\mu\", not \"$\\\\mu$\"."))
+    if key.count("{") != key.count("}"):
+        problems.append(_issue(where, "The symbol's { and } braces don't balance."))
+    for issue in check_rich_text(tip, where, None, variables):
+        issue["message"] = issue["message"].replace("inside a glossary definition", "inside a symbol tip")
+        problems.append(issue)
+    if len(tip.split()) > 6:
+        problems.append(_issue(where, f"Symbol tips should be a few words at most (this one has {len(tip.split())}). "
+                                      "Put longer explanations in the glossary."))
     return problems
 
 
