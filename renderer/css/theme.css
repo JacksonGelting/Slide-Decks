@@ -495,6 +495,13 @@ ol.steps-list > .step::before {
 .rt-var { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent-ink); }
 
 /* Equation symbols with hover tips (deck "symbols" and derivatives) */
+/* KaTeX stacks invisible boxes (struts, the layers of fractions and braces)
+   on top of the glyphs. Only the tipped symbols take the pointer, and their
+   own struts don't, so a tip shows exactly where the symbol is drawn. */
+.rt-math .katex * { pointer-events: none; }
+.rt-math .katex .rt-sym,
+.rt-math .katex .rt-sym * { pointer-events: auto; }
+.rt-math .katex .rt-sym :is(.strut, .pstrut, .vlist-s) { pointer-events: none; }
 .rt-sym {
   cursor: help;
   border-radius: 6px;

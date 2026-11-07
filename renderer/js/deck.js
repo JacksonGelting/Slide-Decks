@@ -196,7 +196,7 @@ export class DeckViewer {
     let used = false;
     this.stage.addEventListener("wheel", (e) => {
       if (e.ctrlKey) return; // pinch-zoom
-      if (e.target.closest?.(".el-control, .chart-plot, input, .hovercard") || this.scrollsInside(e)) return;
+      if (e.target.closest?.(".el-control, .chart-plot, input") || this.scrollsInside(e)) return;
       e.preventDefault();
       const now = performance.now();
       if (now - last > GESTURE_GAP) { acc = 0; used = false; }

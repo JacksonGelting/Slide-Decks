@@ -507,6 +507,7 @@
     "\\approx": "About",
     "\\neq": "Not equal to",
     "\\int_0^1": "Integral across the face",
-    "\\ln": "Natural log"
+    "\\ln": "Natural log",
+    "dX": "Small step across the face"
   }
 }
