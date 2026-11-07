@@ -1,11 +1,16 @@
 // Element registry. Each element type is one module exporting:
 //   render(el, ctx) -> HTMLElement      required
-//   update(node, el, ctx)               optional, called when variables change (Phase 3)
+// Elements that show deck variables redraw themselves by registering a
+// watcher with ctx.vars.watch(names, fn) (see variables.js). Work that needs
+// the element on the page (sizing a chart) waits for ctx.whenMounted.
 // Add a type by writing its module and registering it here (and in the schema).
 
 import * as text from "./text.js";
+import * as chart from "./chart.js";
+import * as control from "./control.js";
+import * as steps from "./steps.js";
 
-export const ELEMENTS = { text };
+export const ELEMENTS = { text, chart, control, steps };
 
 export function renderElement(el, ctx) {
   const type = ELEMENTS[el.type];

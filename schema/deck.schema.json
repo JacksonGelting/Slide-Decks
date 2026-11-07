@@ -5,7 +5,12 @@
   "description": "The contract every decks/<deck-id>/deck.json is written against. Structure is checked here; cross-references (unique ids, slots per layout, glossary terms, variables) are checked by app/validate.py, which also applies this file with a built-in checker (no third-party packages).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "title", "slides"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "slides"
+  ],
   "properties": {
     "schemaVersion": {
       "description": "Version of this contract the deck was written for. The app refuses decks newer than it understands.",
@@ -16,36 +21,64 @@
       "description": "Deck id. Must match the deck's folder name.",
       "$ref": "#/$defs/slug"
     },
-    "title": { "type": "string", "minLength": 1 },
-    "subtitle": { "type": "string" },
-    "subject": { "type": "string" },
-    "author": { "type": "string" },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
     "tags": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "uniqueItems": true
     },
     "theme": {
       "type": "string",
-      "enum": ["default"],
+      "enum": [
+        "default"
+      ],
       "default": "default"
     },
     "glossary": {
       "description": "Deck-wide hover definitions. Keys are the terms used in [[term]]; values are rich text.",
       "type": "object",
-      "propertyNames": { "type": "string", "minLength": 1, "pattern": "^[^\\[\\]|]+$" },
-      "additionalProperties": { "type": "string", "minLength": 1 }
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^\\[\\]|]+$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "variables": {
-      "description": "Deck-wide variables, read with {{name}}. Sliders that change them arrive in a later phase.",
+      "description": "Deck-wide variables, read with {{name}} in any rich text, in chart expressions, and set by control sliders. An input variable has a value; a derived variable has an expr computed from other variables.",
       "type": "object",
-      "propertyNames": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-      "additionalProperties": { "$ref": "#/$defs/variable" }
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/variable"
+      }
     },
     "slides": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/slide" }
+      "items": {
+        "$ref": "#/$defs/slide"
+      }
     }
   },
   "$defs": {
@@ -60,22 +93,51 @@
     "variable": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value"],
+      "required": [],
       "properties": {
-        "label": { "type": "string" },
-        "unit": { "type": "string" },
-        "min": { "type": "number" },
-        "max": { "type": "number" },
-        "step": { "type": "number", "exclusiveMinimum": 0 },
-        "value": { "type": "number" }
-      }
+        "label": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "value": {
+          "type": "number"
+        },
+        "expr": {
+          "description": "Expression for a derived variable, e.g. \"(5/h)^2\". See AUTHORING.md for the expression language.",
+          "type": "string",
+          "minLength": 1
+        },
+        "digits": {
+          "description": "Decimal places when shown. Default: from step for inputs, 3 significant figures for derived values.",
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "Give exactly one of value (an input, which sliders can change) or expr (derived, recomputed live). Checked by validate.py."
     },
     "slide": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "layout"],
+      "required": [
+        "id",
+        "layout"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/elementId" },
+        "id": {
+          "$ref": "#/$defs/elementId"
+        },
         "layout": {
           "type": "string",
           "enum": [
@@ -88,42 +150,135 @@
             "section-break"
           ]
         },
-        "title": { "type": "string" },
-        "subtitle": { "type": "string" },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
         "elements": {
           "type": "array",
-          "items": { "$ref": "#/$defs/element" },
+          "items": {
+            "$ref": "#/$defs/element"
+          },
           "default": []
         },
-        "notes": { "type": "string" }
+        "notes": {
+          "type": "string"
+        }
       }
     },
     "element": {
       "type": "object",
-      "required": ["type", "slot"],
+      "required": [
+        "type",
+        "slot"
+      ],
       "properties": {
-        "type": { "type": "string", "enum": ["text"] },
-        "id": { "$ref": "#/$defs/elementId" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "chart",
+            "control",
+            "steps"
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/elementId"
+        },
         "slot": {
           "type": "string",
-          "enum": ["body", "left", "right", "figure", "equation"]
+          "enum": [
+            "body",
+            "left",
+            "right",
+            "figure",
+            "equation"
+          ]
         }
       },
       "allOf": [
         {
-          "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
-          "then": { "$ref": "#/$defs/textElement" }
+          "if": {
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/textElement"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "chart"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/chartElement"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "control"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/controlElement"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "steps"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/stepsElement"
+          }
         }
       ]
     },
     "textElement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "slot", "content"],
+      "required": [
+        "type",
+        "slot",
+        "content"
+      ],
       "properties": {
-        "type": { "const": "text" },
-        "id": { "$ref": "#/$defs/elementId" },
-        "slot": { "type": "string" },
+        "type": {
+          "const": "text"
+        },
+        "id": {
+          "$ref": "#/$defs/elementId"
+        },
+        "slot": {
+          "type": "string"
+        },
         "content": {
           "description": "Rich text. Blank lines split paragraphs; lines starting with '- ' or '1. ' make lists.",
           "type": "string",
@@ -132,15 +287,271 @@
         "size": {
           "description": "Text size from the theme scale.",
           "type": "string",
-          "enum": ["normal", "large", "small"],
+          "enum": [
+            "normal",
+            "large",
+            "small"
+          ],
           "default": "normal"
         },
         "align": {
           "type": "string",
-          "enum": ["start", "center"],
+          "enum": [
+            "start",
+            "center"
+          ],
           "default": "start"
         }
       }
+    },
+    "range": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "chartElement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "slot",
+        "kind"
+      ],
+      "properties": {
+        "type": {
+          "const": "chart"
+        },
+        "id": {
+          "$ref": "#/$defs/elementId"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "function: curves from expressions. line, scatter, bar: data plots. Sets each series' default mark.",
+          "type": "string",
+          "enum": [
+            "function",
+            "line",
+            "scatter",
+            "bar"
+          ]
+        },
+        "x": {
+          "description": "The name expressions are plotted against. If it is a deck variable, the domain defaults to its min..max and a dot tracks its current value.",
+          "$ref": "#/$defs/name"
+        },
+        "expr": {
+          "description": "Shorthand for a single function series.",
+          "type": "string",
+          "minLength": 1
+        },
+        "domain": {
+          "description": "[from, to] for x when sampling expressions.",
+          "$ref": "#/$defs/range"
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "series": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/chartSeries"
+          }
+        },
+        "data": {
+          "description": "A CSV file in the deck folder (\"assets/data.csv\") or inline columns {\"name\": [values]}.",
+          "type": [
+            "string",
+            "object"
+          ],
+          "additionalProperties": {
+            "type": "array"
+          }
+        },
+        "xLabel": {
+          "type": "string"
+        },
+        "yLabel": {
+          "type": "string"
+        },
+        "y2Label": {
+          "type": "string"
+        },
+        "xRange": {
+          "$ref": "#/$defs/range"
+        },
+        "yRange": {
+          "$ref": "#/$defs/range"
+        },
+        "y2Range": {
+          "$ref": "#/$defs/range"
+        },
+        "xScale": {
+          "type": "string",
+          "enum": [
+            "linear",
+            "log"
+          ]
+        },
+        "yScale": {
+          "type": "string",
+          "enum": [
+            "linear",
+            "log"
+          ]
+        },
+        "transpose": {
+          "description": "Put x on the vertical axis (profiles across a film, depth plots).",
+          "type": "boolean"
+        },
+        "track": {
+          "description": "Show a dot at the x variable's current value. Default true.",
+          "type": "boolean"
+        },
+        "caption": {
+          "description": "Rich text under the chart.",
+          "type": "string"
+        }
+      }
+    },
+    "chartSeries": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": "string",
+          "minLength": 1
+        },
+        "x": {
+          "description": "Data column for x.",
+          "type": "string",
+          "minLength": 1
+        },
+        "y": {
+          "description": "Data column for y.",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "mark": {
+          "type": "string",
+          "enum": [
+            "line",
+            "points",
+            "line+points",
+            "area",
+            "bar"
+          ]
+        },
+        "role": {
+          "description": "reference: a dashed, muted comparison curve.",
+          "type": "string",
+          "enum": [
+            "reference"
+          ]
+        },
+        "axis": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right"
+          ]
+        }
+      }
+    },
+    "controlElement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "slot",
+        "var"
+      ],
+      "properties": {
+        "type": {
+          "const": "control"
+        },
+        "id": {
+          "$ref": "#/$defs/elementId"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "var": {
+          "description": "The input variable this control sets.",
+          "$ref": "#/$defs/name"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "slider",
+            "toggle"
+          ],
+          "default": "slider"
+        },
+        "label": {
+          "description": "Rich text. Defaults to the variable's label.",
+          "type": "string"
+        },
+        "on": {
+          "description": "Toggle readout when on.",
+          "type": "string"
+        },
+        "off": {
+          "description": "Toggle readout when off.",
+          "type": "string"
+        }
+      }
+    },
+    "stepsElement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "slot",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "steps"
+        },
+        "id": {
+          "$ref": "#/$defs/elementId"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "items": {
+          "description": "Rich text with blocks, one per step.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "initial": {
+          "description": "How many steps show on arrival. Default 1.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "numbered": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
     }
   }
 }

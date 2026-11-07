@@ -1,6 +1,6 @@
 # Slide Decks
 
-A desktop app for viewing educational slide decks. Claude writes each deck as a JSON data file in `decks/`; the app validates it and renders it as polished, interactive slides (equations, hover definitions, and later charts and sliders). It is a PySide6 (Qt) application with its own window, works fully offline, and has one dependency.
+A desktop app for viewing educational slide decks. Claude writes each deck as a JSON data file in `decks/`; the app validates it and renders it as polished, interactive slides: equations, hover definitions, sliders, live charts and step-by-step reveals. It is a PySide6 (Qt) application with its own window, works fully offline, and has one dependency.
 
 ## Run it (Windows)
 
@@ -25,7 +25,9 @@ That opens the first deck in `decks/`. A portable `SlideDecks.exe` build that ne
 
 **In the window:** File → Open Deck Folder (Ctrl+O), Reload Deck (Ctrl+R or `R`), View → Outline (Ctrl+L). The outline sidebar follows the current slide; click a title to jump.
 
-**On the slides:** arrows, Page Up/Down or Space to move, Home/End for first/last slide, `Esc` to close a hover card. Click the right three-quarters of a slide to go forward, the left quarter to go back. Hover, focus or click an underlined term to see its definition.
+**On the slides:** arrows, Page Up/Down, Space or the mouse wheel to move (one scroll gesture moves one slide), Home/End for first/last slide, `Esc` to close a hover card. Click the right three-quarters of a slide to go forward, the left quarter to go back. Hover, focus or click an underlined term to see its definition. On slides with step-by-step content, moving forward reveals the next step first.
+
+**Interactive parts:** drag a slider (or focus it and use the arrow keys; `Esc` hands the arrows back to slide navigation) and every value, equation and chart that depends on it updates, on every slide. Double-click a slider to reset it. Hover a chart for exact values; click a legend entry to hide that series.
 
 ## Getting decks
 
@@ -43,11 +45,12 @@ app/
   validate.py   deck checker, standard library only
   paths.py      resolves folders in dev and in the built package
   server.py     developer browser preview (not used by the app window)
-renderer/       HTML/CSS/JS that draws the slides; vendor/ holds KaTeX and Plotly.js
+renderer/       HTML/CSS/JS that draws the slides (elements/ has one module per element type,
+                expr.js the safe expression language, variables.js live values); vendor/ holds KaTeX and Plotly.js
 schema/         deck.schema.json, the contract every deck is written against
 decks/          one folder per deck: deck.json + assets/
 docs/           AUTHORING.md, the guide for writing decks
-tests/          pytest (validator, preview server, Qt window) and node tests (rich-text parser)
+tests/          pytest (validator, preview server, Qt window) and node tests (rich-text parser, expressions, variables)
 ```
 
 Python only loads, validates and passes deck data; the renderer draws everything. The web view gets its files through a private `app://` URL scheme that serves only `renderer/` and the open deck's folder, so nothing touches the network.
@@ -61,11 +64,11 @@ Read [docs/AUTHORING.md](docs/AUTHORING.md). In short: create `decks/<id>/deck.j
 ```
 pip install -r requirements-dev.txt
 python -m pytest
-node --test tests/richtext.test.mjs
+node --test tests/*.mjs
 ```
 
 The Qt window tests run headless and skip themselves if PySide6 isn't installed.
 
 ## Third-party libraries
 
-PySide6 (LGPL). Bundled in `renderer/vendor/` with their licenses: [KaTeX](https://katex.org) 0.16.22 (MIT) and [Plotly.js](https://plotly.com/javascript/) 2.35.3 (MIT, used from Phase 3 for charts).
+PySide6 (LGPL). Bundled in `renderer/vendor/` with their licenses: [KaTeX](https://katex.org) 0.16.22 (MIT) and [Plotly.js](https://plotly.com/javascript/) 2.35.3 (MIT, charts; loaded only for decks that have one).

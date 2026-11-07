@@ -19,11 +19,13 @@ Checks run in this order, and later checks only run when earlier ones pass:
      applied by a small built-in checker for the JSON Schema keywords that
      file uses (see SchemaChecker)
   4. cross-reference rules the schema cannot express (unique ids, slots per
-     layout, glossary terms, variables, balanced math delimiters)
+     layout, glossary terms, variables, balanced math delimiters, chart and
+     variable expressions, chart data files and columns, control bindings)
 """
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 import sys
@@ -56,10 +58,124 @@ LAYOUT_SLOTS: dict[str, tuple[str, ...]] = {
 # Element fields that hold rich text, by element type.
 RICH_TEXT_FIELDS: dict[str, tuple[str, ...]] = {
     "text": ("content",),
+    "chart": ("caption",),
+    "control": ("label",),
 }
 
 TERM_RE = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]")
 VAR_RE = re.compile(r"\{\{\s*([^}]*?)\s*\}\}")
+
+
+# ------------------------------------------------------- expression language
+# The same small grammar as renderer/js/expr.js: numbers, names, + - * / ^,
+# unary minus, parentheses and the functions below. Keep the two in sync.
+
+EXPR_FUNCTIONS = frozenset({
+    "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh",
+    "exp", "ln", "log", "log10", "log2", "sqrt", "cbrt", "abs", "sign",
+    "floor", "ceil", "round", "min", "max", "pow", "hypot",
+})
+EXPR_CONSTANTS = frozenset({"pi", "e"})
+_EXPR_TOKEN = re.compile(r"\s*(?:(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))")
+
+
+class ExprError(ValueError):
+    pass
+
+
+def parse_expression(src: str) -> set[str]:
+    """Check an expression's syntax. Returns the variable names it reads."""
+    tokens: list[tuple[str, str]] = []
+    i = 0
+    while i < len(src):
+        if not src[i:].strip():
+            break
+        m = _EXPR_TOKEN.match(src, i)
+        if not m:
+            raise ExprError(f'Unexpected character "{src[i:].strip()[0]}".')
+        if m.group(1) is not None:
+            tokens.append(("num", m.group(1)))
+        elif m.group(2) is not None:
+            tokens.append(("name", m.group(2)))
+        else:
+            tokens.append(("op", "^" if m.group(3) == "**" else m.group(3)))
+        i = m.end()
+    if not tokens:
+        raise ExprError("The expression is empty.")
+
+    names: set[str] = set()
+    pos = 0
+
+    def is_op(v: str) -> bool:
+        return pos < len(tokens) and tokens[pos] == ("op", v)
+
+    def expect(v: str) -> None:
+        nonlocal pos
+        if not is_op(v):
+            raise ExprError(f'Expected "{v}".')
+        pos += 1
+
+    def sum_() -> None:
+        nonlocal pos
+        product()
+        while is_op("+") or is_op("-"):
+            pos += 1
+            product()
+
+    def product() -> None:
+        nonlocal pos
+        unary()
+        while is_op("*") or is_op("/"):
+            pos += 1
+            unary()
+
+    def unary() -> None:
+        nonlocal pos
+        if is_op("-") or is_op("+"):
+            pos += 1
+            unary()
+            return
+        atom()
+        if is_op("^"):
+            pos += 1
+            unary()
+
+    def atom() -> None:
+        nonlocal pos
+        if pos >= len(tokens):
+            raise ExprError("The expression ends too early.")
+        kind, value = tokens[pos]
+        if kind == "num":
+            pos += 1
+            return
+        if kind == "name":
+            pos += 1
+            if is_op("("):
+                if value not in EXPR_FUNCTIONS:
+                    raise ExprError(f'Unknown function "{value}". Available: {", ".join(sorted(EXPR_FUNCTIONS))}.')
+                pos += 1
+                if not is_op(")"):
+                    sum_()
+                    while is_op(","):
+                        pos += 1
+                        sum_()
+                expect(")")
+            elif value not in EXPR_CONSTANTS:
+                names.add(value)
+            return
+        if is_op("("):
+            pos += 1
+            sum_()
+            expect(")")
+            return
+        raise ExprError(f'Unexpected "{value}".')
+
+    sum_()
+    if pos < len(tokens):
+        kind, value = tokens[pos]
+        hint = " Write multiplication with *, e.g. 2*x." if kind != "op" or value == "(" else ""
+        raise ExprError(f'Unexpected "{value}".{hint}')
+    return names
 
 
 # ------------------------------------------------------------ schema checker
@@ -79,7 +195,7 @@ class SchemaChecker:
     """Applies the subset of JSON Schema (2020-12) that deck.schema.json uses.
 
     Supported keywords: type, enum, const, required, properties,
-    additionalProperties, propertyNames, items, minItems, uniqueItems,
+    additionalProperties, propertyNames, items, minItems, maxItems, uniqueItems,
     minLength, pattern, minimum, exclusiveMinimum, $ref (local #/$defs/...),
     allOf, if/then. Annotation keywords (title, description, default, $id,
     $schema) are ignored. Any other keyword raises at load time, so the schema
@@ -88,7 +204,7 @@ class SchemaChecker:
 
     HANDLED = {
         "type", "enum", "const", "required", "properties", "additionalProperties", "propertyNames",
-        "items", "minItems", "uniqueItems", "minLength", "pattern", "minimum", "exclusiveMinimum",
+        "items", "minItems", "maxItems", "uniqueItems", "minLength", "pattern", "minimum", "exclusiveMinimum",
         "$ref", "allOf", "if", "then",
     }
     ANNOTATIONS = {"title", "description", "default", "$id", "$schema", "$defs", "$comment"}
@@ -158,6 +274,8 @@ class SchemaChecker:
         if isinstance(inst, list):
             if "minItems" in schema and len(inst) < schema["minItems"]:
                 yield err("minItems")
+            if "maxItems" in schema and len(inst) > schema["maxItems"]:
+                yield err("maxItems")
             if schema.get("uniqueItems"):
                 seen = [json.dumps(x, sort_keys=True) for x in inst]
                 if len(seen) != len(set(seen)):
@@ -321,12 +439,42 @@ def check_references(deck: dict[str, Any], deck_dir: Path) -> list[dict[str, str
     glossary = {k.casefold(): k for k in deck.get("glossary", {})}
     variables = set(deck.get("variables", {}))
 
-    for name, var in deck.get("variables", {}).items():
+    var_defs = deck.get("variables", {})
+    inputs = {n for n, v in var_defs.items() if "value" in v}
+    derived_deps: dict[str, set[str]] = {}
+    for name, var in var_defs.items():
+        where = f"variables > {name}"
+        if ("value" in var) == ("expr" in var):
+            problems.append(_issue(where, 'Give exactly one of "value" (an input a slider can change) or '
+                                          '"expr" (a derived value computed from other variables).'))
+            continue
+        if "expr" in var:
+            for key in ("min", "max", "step"):
+                if key in var:
+                    problems.append(_issue(where, f'A derived variable (with "expr") can\'t have "{key}"; '
+                                                  "only input variables have a slider range."))
+            try:
+                used = parse_expression(var["expr"])
+            except ExprError as exc:
+                problems.append(_issue(f"{where} > expr", f'"{var["expr"]}": {exc}'))
+                continue
+            unknown = sorted(used - variables)
+            if unknown:
+                problems.append(_issue(f"{where} > expr", f'"{var["expr"]}" uses {_names(unknown)}, which '
+                                                          "is not a deck variable."))
+            derived_deps[name] = used & variables
+            continue
         lo, hi = var.get("min"), var.get("max")
         if lo is not None and hi is not None and lo >= hi:
-            problems.append(_issue(f"variables > {name}", f"min ({lo}) must be less than max ({hi})."))
+            problems.append(_issue(where, f"min ({lo}) must be less than max ({hi})."))
         elif (lo is not None and var["value"] < lo) or (hi is not None and var["value"] > hi):
-            problems.append(_issue(f"variables > {name}", f"value {var['value']} is outside min..max."))
+            problems.append(_issue(where, f"value {var['value']} is outside min..max."))
+    for name in derived_deps:
+        cycle = _find_cycle(name, derived_deps)
+        if cycle:
+            problems.append(_issue(f"variables > {name}", "Derived variables can't depend on themselves: "
+                                                          + " → ".join(cycle) + "."))
+            break
 
     seen_ids: dict[str, str] = {}
 
@@ -363,6 +511,17 @@ def check_references(deck: dict[str, Any], deck_dir: Path) -> list[dict[str, str
             for field in RICH_TEXT_FIELDS.get(element["type"], ()):
                 if field in element:
                     check_rich(element[field], f"{e_where} > {field}")
+            if element["type"] == "steps":
+                for i, item in enumerate(element["items"]):
+                    check_rich(item, f"{e_where} > items > item {i + 1}")
+                if element.get("initial", 1) > len(element["items"]):
+                    problems.append(_issue(f"{e_where} > initial",
+                                           f"initial ({element['initial']}) is more than the "
+                                           f"{len(element['items'])} step(s) in items."))
+            elif element["type"] == "control":
+                problems.extend(check_control(element, e_where, var_defs, inputs))
+            elif element["type"] == "chart":
+                problems.extend(check_chart(element, e_where, var_defs, deck_dir))
 
     return problems
 
@@ -388,12 +547,149 @@ def check_rich_text(value: str, where: str, glossary: dict[str, str] | None,
     if "[[" in TERM_RE.sub("", prose):
         problems.append(_issue(where, "A [[ hover term is never closed with ]]."))
 
-    for match in VAR_RE.finditer(prose):
+    for match in VAR_RE.finditer(value):  # {{name}} is live inside math too
         name = match.group(1)
         if name not in variables:
             problems.append(_issue(where, f'{{{{{name}}}}} refers to a variable that is not defined in the '
                                           "deck's variables."))
     return problems
+
+
+def _find_cycle(start: str, deps: dict[str, set[str]]) -> list[str] | None:
+    stack = [(start, [start])]
+    while stack:
+        node, path = stack.pop()
+        for nxt in deps.get(node, ()):
+            if nxt == start:
+                return path + [start]
+            if nxt not in path:
+                stack.append((nxt, path + [nxt]))
+    return None
+
+
+def check_control(element: dict[str, Any], where: str, var_defs: dict[str, Any],
+                  inputs: set[str]) -> list[dict[str, str]]:
+    name = element["var"]
+    if name not in var_defs:
+        return [_issue(f"{where} > var", f'"{name}" is not a deck variable. Add it to the deck\'s variables.')]
+    if name not in inputs:
+        return [_issue(f"{where} > var", f'"{name}" is a derived variable (it has an expr); a control can '
+                                         "only set an input variable with a value.")]
+    var = var_defs[name]
+    if element.get("kind", "slider") == "slider" and ("min" not in var or "max" not in var):
+        return [_issue(f"{where} > var", f'A slider needs "min" and "max" on the variable "{name}".')]
+    return []
+
+
+def check_chart(element: dict[str, Any], where: str, var_defs: dict[str, Any],
+                deck_dir: Path) -> list[dict[str, str]]:
+    problems: list[dict[str, str]] = []
+    if "expr" in element and "series" in element:
+        problems.append(_issue(where, 'Use either "expr" (one curve) or "series", not both.'))
+    series = element.get("series") or ([{"expr": element["expr"]}] if "expr" in element else [])
+    if not series:
+        return problems + [_issue(where, 'A chart needs "expr" or "series".')]
+
+    x = element.get("x")
+    x_var = var_defs.get(x) if x else None
+    has_expr = any("expr" in s for s in series)
+    if has_expr:
+        if not x:
+            problems.append(_issue(where, 'A chart with expressions needs "x": the name the curve is plotted '
+                                          "against (a slider variable, or any name plus a domain)."))
+        elif "domain" not in element and not (x_var and "value" in x_var and "min" in x_var and "max" in x_var):
+            problems.append(_issue(where, f'Add "domain": [from, to]. "{x}" is not a slider variable with '
+                                          "min and max, so the chart can't tell what range to plot."))
+    for key in ("domain", "xRange", "yRange", "y2Range"):
+        rng = element.get(key)
+        if rng and rng[0] >= rng[1]:
+            problems.append(_issue(f"{where} > {key}", f"The first value must be less than the second, got {rng}."))
+    for axis, rng_key in (("xScale", "xRange"), ("yScale", "yRange")):
+        rng = element.get(rng_key) or (element.get("domain") if axis == "xScale" else None)
+        if element.get(axis) == "log" and rng and rng[0] <= 0:
+            problems.append(_issue(f"{where} > {rng_key}", "A log axis needs a range above 0."))
+    if any(s.get("axis") == "right" for s in series) and "y2Label" not in element:
+        problems.append(_issue(where, 'A series on the right axis needs "y2Label" to say what it shows.'))
+
+    columns = _chart_columns(element, where, deck_dir, problems)
+    for i, s in enumerate(series):
+        s_where = f"{where} > series > item {i + 1}" if "series" in element else f"{where} > expr"
+        if "expr" in s:
+            if "y" in s or "x" in s:
+                problems.append(_issue(s_where, 'A series has either "expr" or data columns "x" and "y", not both.'))
+            try:
+                used = parse_expression(s["expr"])
+            except ExprError as exc:
+                problems.append(_issue(s_where, f'"{s["expr"]}": {exc}'))
+                continue
+            unknown = sorted(n for n in used if n != x and n not in var_defs)
+            if unknown:
+                problems.append(_issue(s_where, f'"{s["expr"]}" uses {_names(unknown)}, which is neither a deck '
+                                                f'variable nor the chart\'s x ("{x}").'))
+        else:
+            if "x" not in s or "y" not in s:
+                problems.append(_issue(s_where, 'A data series needs both "x" and "y" column names '
+                                                '(or an "expr" for a function).'))
+                continue
+            if "data" not in element:
+                problems.append(_issue(s_where, 'This series reads data columns, but the chart has no "data".'))
+                continue
+            if columns is None:
+                continue
+            for key in ("x", "y"):
+                col = s[key]
+                if col not in columns:
+                    problems.append(_issue(s_where, f'No column "{col}" in the chart data. Columns: '
+                                                    f'{", ".join(columns) or "(none)"}.'))
+                    continue
+                categorical = key == "x" and (s.get("mark") or element["kind"]) == "bar"
+                if not categorical and not all(_is_number(v) for v in columns[col] if v not in ("", None)):
+                    problems.append(_issue(s_where, f'Column "{col}" must hold numbers.'))
+    return problems
+
+
+def _is_number(v: Any) -> bool:
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return True
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _chart_columns(element: dict[str, Any], where: str, deck_dir: Path,
+                   problems: list[dict[str, str]]) -> dict[str, list] | None:
+    data = element.get("data")
+    if data is None:
+        return None
+    if isinstance(data, dict):
+        lengths = {len(v) for v in data.values()}
+        if len(lengths) > 1:
+            problems.append(_issue(f"{where} > data", "Every inline data column must have the same length."))
+        return data
+    root = deck_dir.resolve()
+    path = (root / data).resolve()
+    if not path.is_relative_to(root):
+        problems.append(_issue(f"{where} > data", f'"{data}" must be inside the deck folder.'))
+        return None
+    if not path.is_file():
+        problems.append(_issue(f"{where} > data", f'No file "{data}" in the deck folder.'))
+        return None
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        problems.append(_issue(f"{where} > data", f'Could not read "{data}": {exc}'))
+        return None
+    lines = [ln for ln in text.splitlines() if ln.strip() and not ln.startswith("#")]
+    rows = list(csv.reader(lines))
+    if not rows:
+        problems.append(_issue(f"{where} > data", f'"{data}" is empty; it needs a header row of column names.'))
+        return None
+    header = [h.strip() for h in rows[0]]
+    return {h: [r[j].strip() if j < len(r) else "" for r in rows[1:]] for j, h in enumerate(header)}
 
 
 def _strip_math(value: str) -> str | None:
@@ -463,6 +759,8 @@ def _format_schema_error(error: SchemaError, deck: dict[str, Any]) -> dict[str, 
         msg = "Must not be empty."
     elif v == "minItems":
         msg = f"Needs at least {expected} item(s)."
+    elif v == "maxItems":
+        msg = f"Allows at most {expected} item(s)."
     elif v == "uniqueItems":
         msg = "Contains duplicate entries."
     elif v in ("minimum", "exclusiveMinimum"):
