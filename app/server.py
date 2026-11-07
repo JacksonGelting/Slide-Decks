@@ -1,10 +1,12 @@
-"""A tiny localhost-only file server for the renderer and deck assets.
+"""Developer preview: serve the renderer to an ordinary web browser.
 
-The window loads http://127.0.0.1:<port>/renderer/index.html from here, so the
-renderer, its bundled vendor libraries and decks/<id>/assets/ share one
-origin. Only GET is supported, and only files under renderer/ and decks/ are
-served. /api/<method> calls the Bridge, which lets the renderer run in an
-ordinary browser with --browser.
+    python app/main.py --browser [--deck <id>] [--dev]
+
+Not part of the app the user runs (that is the PySide6 window). It exists so
+decks can be previewed and the renderer debugged where Qt isn't installed.
+It needs only the standard library, binds to 127.0.0.1, serves GET only, and
+exposes nothing but renderer/, the open deck's folder (at /deck/) and two
+read-only API calls that mirror the Qt bridge.
 """
 
 from __future__ import annotations
@@ -16,10 +18,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from bridge import Bridge
-from loader import REPO_ROOT
-
-SERVED_DIRS = ("renderer", "decks")
+from library import ASSET_BASE, deck_payload
+from paths import RENDERER_DIR
 
 # Set explicitly: on Windows, mimetypes reads the registry, which sometimes
 # maps .js to text/plain and breaks module scripts.
@@ -43,37 +43,43 @@ CONTENT_TYPES = {
 }
 
 
-def make_handler(bridge: Bridge, root: Path = REPO_ROOT):
-    root = root.resolve()
+def content_type(path: Path) -> str:
+    return CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
 
+
+def resolve_request(path: str, deck_dir: Path) -> Path | None:
+    """Map a URL path to a file under renderer/ or the deck folder, or None.
+
+    Shared with the Qt scheme handler so both apply the same rules.
+    """
+    roots = {"/renderer/": RENDERER_DIR.resolve(), ASSET_BASE: deck_dir.resolve()}
+    for prefix, root in roots.items():
+        if path.startswith(prefix):
+            target = (root / path[len(prefix):]).resolve()
+            if target.is_relative_to(root) and target.is_file():
+                return target
+    return None
+
+
+def make_handler(deck_path: Path, dev: bool):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "SlideDecks"
+        server_version = "SlideDecksPreview"
 
-        def log_message(self, format: str, *args) -> None:  # noqa: A002 - quiet by default
+        def log_message(self, format: str, *args) -> None:  # noqa: A002 - quiet
             pass
 
-        def do_GET(self) -> None:  # noqa: N802 - http.server naming
+        def do_GET(self) -> None:  # noqa: N802
             path = unquote(urlsplit(self.path).path)
-            if path.startswith("/api/"):
-                self._api(path[len("/api/"):])
+            if path == "/api/getDeck":
+                self._send(HTTPStatus.OK, json.dumps(deck_payload(deck_path)).encode(), CONTENT_TYPES[".json"])
+            elif path == "/api/getSettings":
+                self._send(HTTPStatus.OK, json.dumps({"dev": dev}).encode(), CONTENT_TYPES[".json"])
             else:
-                self._file(path)
-
-        def _api(self, name: str) -> None:
-            if name not in Bridge.PUBLIC:
-                self._send(HTTPStatus.NOT_FOUND, b"unknown api method", "text/plain")
-                return
-            payload = json.dumps(getattr(bridge, name)()).encode("utf-8")
-            self._send(HTTPStatus.OK, payload, CONTENT_TYPES[".json"])
-
-        def _file(self, path: str) -> None:
-            target = (root / path.lstrip("/")).resolve()
-            allowed = any(target.is_relative_to(root / d) for d in SERVED_DIRS)
-            if not allowed or not target.is_file():
-                self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain")
-                return
-            ctype = CONTENT_TYPES.get(target.suffix.lower(), "application/octet-stream")
-            self._send(HTTPStatus.OK, target.read_bytes(), ctype)
+                target = resolve_request(path, deck_path.parent)
+                if target is None:
+                    self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain")
+                else:
+                    self._send(HTTPStatus.OK, target.read_bytes(), content_type(target))
 
         def _send(self, status: HTTPStatus, body: bytes, ctype: str) -> None:
             self.send_response(status)
@@ -86,10 +92,10 @@ def make_handler(bridge: Bridge, root: Path = REPO_ROOT):
     return Handler
 
 
-def start_server(bridge: Bridge, port: int = 0) -> tuple[ThreadingHTTPServer, str]:
+def start_server(deck_path: Path, dev: bool = False, port: int = 0) -> tuple[ThreadingHTTPServer, str]:
     """Start serving on 127.0.0.1 in a daemon thread. Returns (server, base_url)."""
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(bridge))
+    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(deck_path, dev))
     httpd.daemon_threads = True
-    threading.Thread(target=httpd.serve_forever, name="slide-decks-http", daemon=True).start()
+    threading.Thread(target=httpd.serve_forever, name="slide-decks-preview", daemon=True).start()
     host, real_port = httpd.server_address[:2]
     return httpd, f"http://{host}:{real_port}"

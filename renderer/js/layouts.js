@@ -1,6 +1,6 @@
 // Slide layouts. Each layout is a CSS grid (see theme.css, .layout-<name>)
 // with named slots. Elements land in the slot named by their `slot` field, in
-// deck order. Keep slot names in sync with LAYOUT_SLOTS in app/loader.py.
+// deck order. Keep slot names in sync with LAYOUT_SLOTS in app/validate.py.
 
 export const LAYOUTS = {
   "title":          { slots: ["body"], header: "hero" },

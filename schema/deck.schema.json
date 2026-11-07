@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/JacksonGelting/Slide-Decks/schema/deck.schema.json",
   "title": "Slide Decks deck file (schemaVersion 1)",
-  "description": "The contract every decks/<deck-id>/deck.json is written against. Structure is checked here; cross-references (unique ids, slots per layout, glossary terms, variables) are checked by app/loader.py.",
+  "description": "The contract every decks/<deck-id>/deck.json is written against. Structure is checked here; cross-references (unique ids, slots per layout, glossary terms, variables) are checked by app/validate.py, which also applies this file with a built-in checker (no third-party packages).",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "id", "title", "slides"],

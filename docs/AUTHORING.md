@@ -1,6 +1,6 @@
 # Authoring decks
 
-This is the guide for writing a deck. Follow it and the deck will validate and render without any app changes. The machine-checked contract is [`schema/deck.schema.json`](../schema/deck.schema.json); `app/loader.py` adds the cross-reference checks listed in [Validation rules](#validation-rules).
+This is the guide for writing a deck. Follow it and the deck will validate and render without any app changes. The machine-checked contract is [`schema/deck.schema.json`](../schema/deck.schema.json); `app/validate.py` applies it and adds the cross-reference checks listed in [Validation rules](#validation-rules).
 
 > **Phase 1 scope.** The only element type available today is `text`. Charts, equations with term labels, figures, callouts, tables, controls, steps and code arrive in later phases. Don't use them yet: the validator rejects unknown element types. Display equations work today inside `text` with `$$...$$`.
 
@@ -8,8 +8,8 @@ This is the guide for writing a deck. Follow it and the deck will validate and r
 
 1. Create a folder `decks/<deck-id>/` with a `deck.json` inside. Put any images or data in `decks/<deck-id>/assets/`.
 2. Write the deck following this guide.
-3. Validate: `python app/main.py --validate --deck <deck-id>`. Fix every reported problem.
-4. Preview with authoring checks: `python app/main.py --deck <deck-id> --dev`. A panel lists math errors and any slot whose content overflows; overflowing slots get a red outline. Press `R` to reload after editing.
+3. Validate: `python app/validate.py <deck-id>`. It needs only Python (no PySide6). Fix every reported problem.
+4. Preview with authoring checks: `python app/main.py --deck <deck-id> --dev`. A panel lists math errors and any slot whose content overflows; overflowing slots get a red outline. Press `R` to reload after editing. Where PySide6 isn't installed, `python app/main.py --browser --deck <deck-id> --dev` shows the same preview in a web browser.
 5. Commit only the `decks/<deck-id>/` folder. Never change app code to make a deck work.
 
 ## File skeleton
@@ -187,7 +187,7 @@ See [`decks/reynolds-equation-intro/deck.json`](../decks/reynolds-equation-intro
 
 ## Checklist before committing
 
-- [ ] `python app/main.py --validate --deck <deck-id>` prints `OK`.
+- [ ] `python app/validate.py <deck-id>` prints `OK`.
 - [ ] `python app/main.py --deck <deck-id> --dev` shows "No authoring warnings" (green panel).
 - [ ] Every slide has a title, and no slot is outlined red.
 - [ ] Only files under `decks/<deck-id>/` changed.

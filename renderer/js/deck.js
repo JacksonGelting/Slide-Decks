@@ -6,6 +6,7 @@ import { LAYOUTS } from "./layouts.js";
 import { renderElement } from "./elements/index.js";
 import { createContext, renderInline } from "./richtext.js";
 import { installHoverCards } from "./interactions.js";
+import { notifySlide, onGoToSlide } from "./api.js";
 
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
@@ -119,6 +120,7 @@ export class DeckViewer {
     this.index = next;
     history.replaceState(null, "", `${location.pathname}${location.search}#slide=${next + 1}`);
     this.nav.querySelector("#nav-count").textContent = `${next + 1} / ${this.slides.length}`;
+    notifySlide(next);
   }
 
   next() { this.go(this.index + 1); }
@@ -149,6 +151,7 @@ export class DeckViewer {
       if (Math.abs(dx) > 60) (dx < 0 ? this.next() : this.prev());
       touchX = null;
     });
+    onGoToSlide((i) => this.go(i));
     this.nav.querySelector("#nav-prev").addEventListener("click", () => this.prev());
     this.nav.querySelector("#nav-next").addEventListener("click", () => this.next());
   }

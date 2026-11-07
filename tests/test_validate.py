@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from loader import DECKS_DIR, check_rich_text, load_deck
+from validate import DECKS_DIR, check_rich_text, load_deck
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SAMPLE = DECKS_DIR / "reynolds-equation-intro"
@@ -119,3 +119,58 @@ def test_rich_text_checks():
     assert "not defined" in check_rich_text("{{q}}", "x", {}, set())[0]["message"]
     assert "never closed with ]]" in check_rich_text("[[open", "x", {}, set())[0]["message"]
     assert "inside a glossary definition" in check_rich_text("[[a]]", "x", None, set())[0]["message"]
+
+
+# ---------------------------------------------------------- schema checker
+
+
+def test_schema_checker_keywords():
+    from validate import SchemaChecker
+
+    checker = SchemaChecker({
+        "$defs": {"slug": {"type": "string", "pattern": "^[a-z]+$"}},
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["a"],
+        "properties": {
+            "a": {"$ref": "#/$defs/slug"},
+            "n": {"type": "integer", "minimum": 1},
+            "e": {"type": "string", "enum": ["x", "y"]},
+            "l": {"type": "array", "minItems": 1, "uniqueItems": True, "items": {"type": "string", "minLength": 1}},
+            "m": {"type": "object", "propertyNames": {"type": "string", "pattern": "^k"},
+                  "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
+        },
+    })
+    assert list(checker.iter_errors({"a": "ok", "n": 2, "e": "x", "l": ["p"], "m": {"k1": 1}})) == []
+    found = {(e.validator, tuple(e.path)) for e in checker.iter_errors(
+        {"a": "BAD", "n": 0, "e": "z", "l": ["", ""], "m": {"zz": 0}, "extra": 1})}
+    assert found == {
+        ("pattern", ("a",)), ("minimum", ("n",)), ("enum", ("e",)), ("uniqueItems", ("l",)),
+        ("minLength", ("l", 0)), ("minLength", ("l", 1)), ("propertyNames", ("m",)),
+        ("exclusiveMinimum", ("m", "zz")), ("additionalProperties", ()),
+    }
+    assert {e.validator for e in checker.iter_errors({})} == {"required"}
+    assert {e.validator for e in checker.iter_errors({"a": 5})} == {"type"}
+    assert {e.validator for e in checker.iter_errors({"a": "x", "n": True})} == {"type"}
+
+
+def test_schema_checker_rejects_unknown_keywords():
+    from validate import SchemaChecker
+
+    with pytest.raises(ValueError, match="unsupported keyword"):
+        SchemaChecker({"type": "string", "maxLength": 3})
+
+
+def test_unknown_element_type(tmp_path):
+    deck = minimal()
+    deck["slides"][0]["elements"][0] = {"type": "chart", "slot": "body"}
+    result = load_deck(write_deck(tmp_path, deck))
+    assert '"chart" is not allowed here. Use one of: text.' in messages(result)
+
+
+def test_cli(capsys):
+    from validate import main
+
+    assert main([]) == 0
+    assert main([str(FIXTURES / "broken-deck")]) == 1
+    assert "FAIL" in capsys.readouterr().out

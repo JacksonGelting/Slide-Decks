@@ -4,13 +4,13 @@ import urllib.request
 
 import pytest
 
-from bridge import Bridge
 from server import start_server
+from validate import resolve_deck_path
 
 
 @pytest.fixture(scope="module")
 def base():
-    httpd, url = start_server(Bridge("reynolds-equation-intro", dev=True))
+    httpd, url = start_server(resolve_deck_path("reynolds-equation-intro"), dev=True)
     yield url
     httpd.shutdown()
 
@@ -21,20 +21,26 @@ def get(url):
 
 
 def test_api_get_deck(base):
-    status, ctype, body = get(base + "/api/get_deck")
+    status, _, body = get(base + "/api/getDeck")
     data = json.loads(body)
     assert status == 200 and data["ok"]
     assert data["deck"]["id"] == "reynolds-equation-intro"
-    assert data["assetBase"] == "/decks/reynolds-equation-intro/"
+    assert data["assetBase"] == "/deck/"
 
 
-def test_serves_renderer_with_js_type(base):
+def test_api_get_settings(base):
+    assert json.loads(get(base + "/api/getSettings")[2]) == {"dev": True}
+
+
+def test_serves_renderer_and_deck_folder(base):
     status, ctype, _ = get(base + "/renderer/js/app.js")
     assert status == 200 and ctype.startswith("text/javascript")
+    status, ctype, _ = get(base + "/deck/deck.json")
+    assert status == 200 and ctype.startswith("application/json")
 
 
-@pytest.mark.parametrize("path", ["/app/main.py", "/renderer/../app/main.py",
-                                  "/renderer/%2e%2e/app/main.py", "/api/_deck_target", "/README.md"])
+@pytest.mark.parametrize("path", ["/app/main.py", "/renderer/../app/main.py", "/renderer/%2e%2e/app/main.py",
+                                  "/deck/../../app/main.py", "/api/nope", "/README.md"])
 def test_refuses_everything_else(base, path):
     with pytest.raises(urllib.error.HTTPError) as exc:
         get(base + path)

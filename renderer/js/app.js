@@ -49,7 +49,7 @@ function showMessage({ title, intro, errors = [], path }) {
   const hint = document.createElement("p");
   hint.className = "message-hint";
   hint.textContent = "Fix the deck file, then press R to reload. "
-    + "To check decks without opening the app, run: python app/main.py --validate";
+    + "To check decks without opening the app, run: python app/validate.py";
   card.append(hint);
 
   box.append(card);

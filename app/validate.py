@@ -1,6 +1,11 @@
 """Load a deck folder, validate it, and report problems in plain language.
 
-The loader is the only gate between a deck file and the renderer. It never
+Standard library only, so it runs anywhere Python does:
+
+    python app/validate.py                 check every deck in decks/
+    python app/validate.py <deck-id|folder|deck.json>
+
+This module is the only gate between a deck file and the renderer. It never
 raises for a bad deck; it returns a result the renderer can show:
 
     {"ok": True,  "deck": {...}, "deckDir": "...", "deckPath": "...", "errors": []}
@@ -10,7 +15,9 @@ raises for a bad deck; it returns a result the renderer can show:
 Checks run in this order, and later checks only run when earlier ones pass:
   1. the file exists and is valid JSON
   2. schemaVersion is one this app understands
-  3. the JSON Schema in schema/deck.schema.json (structure, field names, enums)
+  3. the rules in schema/deck.schema.json (structure, field names, enums),
+     applied by a small built-in checker for the JSON Schema keywords that
+     file uses (see SchemaChecker)
   4. cross-reference rules the schema cannot express (unique ids, slots per
      layout, glossary terms, variables, balanced math delimiters)
 """
@@ -19,14 +26,16 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
-from jsonschema import Draft202012Validator
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SCHEMA_PATH = REPO_ROOT / "schema" / "deck.schema.json"
-DECKS_DIR = REPO_ROOT / "decks"
+from paths import DECKS_DIR, SCHEMA_PATH  # noqa: E402
+
 DECK_FILE = "deck.json"
 
 SUPPORTED_SCHEMA_VERSION = 1
@@ -52,16 +61,170 @@ RICH_TEXT_FIELDS: dict[str, tuple[str, ...]] = {
 TERM_RE = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]")
 VAR_RE = re.compile(r"\{\{\s*([^}]*?)\s*\}\}")
 
-_validator: Draft202012Validator | None = None
+
+# ------------------------------------------------------------ schema checker
 
 
-def _schema_validator() -> Draft202012Validator:
-    global _validator
-    if _validator is None:
-        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-        Draft202012Validator.check_schema(schema)
-        _validator = Draft202012Validator(schema)
-    return _validator
+@dataclass
+class SchemaError:
+    validator: str           # the JSON Schema keyword that failed
+    path: list               # location in the deck, e.g. ["slides", 2, "layout"]
+    instance: Any            # the offending value
+    validator_value: Any     # the keyword's value in the schema
+    schema: dict = field(repr=False, default_factory=dict)  # the (sub)schema holding the keyword
+    message: str = ""
+
+
+class SchemaChecker:
+    """Applies the subset of JSON Schema (2020-12) that deck.schema.json uses.
+
+    Supported keywords: type, enum, const, required, properties,
+    additionalProperties, propertyNames, items, minItems, uniqueItems,
+    minLength, pattern, minimum, exclusiveMinimum, $ref (local #/$defs/...),
+    allOf, if/then. Annotation keywords (title, description, default, $id,
+    $schema) are ignored. Any other keyword raises at load time, so the schema
+    can't silently use something this checker ignores.
+    """
+
+    HANDLED = {
+        "type", "enum", "const", "required", "properties", "additionalProperties", "propertyNames",
+        "items", "minItems", "uniqueItems", "minLength", "pattern", "minimum", "exclusiveMinimum",
+        "$ref", "allOf", "if", "then",
+    }
+    ANNOTATIONS = {"title", "description", "default", "$id", "$schema", "$defs", "$comment"}
+
+    def __init__(self, schema: dict) -> None:
+        self.root = schema
+        self._check_keywords(schema)
+
+    def _check_keywords(self, node: Any) -> None:
+        if isinstance(node, dict):
+            if "type" in node or "properties" in node or "$ref" in node or "enum" in node or "const" in node:
+                unknown = set(node) - self.HANDLED - self.ANNOTATIONS
+                if unknown:
+                    raise ValueError(f"deck.schema.json uses unsupported keyword(s): {sorted(unknown)}")
+            for key, value in node.items():
+                if key in ("properties", "$defs"):
+                    for sub in value.values():
+                        self._check_keywords(sub)
+                elif key not in ("enum", "const", "default", "required"):
+                    self._check_keywords(value)
+        elif isinstance(node, list):
+            for item in node:
+                self._check_keywords(item)
+
+    def iter_errors(self, instance: Any) -> Iterator[SchemaError]:
+        yield from self._validate(instance, self.root, [])
+
+    def is_valid(self, instance: Any, schema: dict) -> bool:
+        return next(self._validate(instance, schema, []), None) is None
+
+    def _resolve(self, ref: str) -> dict:
+        if not ref.startswith("#/"):
+            raise ValueError(f"Only local $ref is supported, got {ref}")
+        node: Any = self.root
+        for part in ref[2:].split("/"):
+            node = node[part]
+        return node
+
+    def _validate(self, inst: Any, schema: dict, path: list) -> Iterator[SchemaError]:
+        def err(keyword: str, message: str = "") -> SchemaError:
+            return SchemaError(keyword, list(path), inst, schema[keyword], schema, message)
+
+        if "$ref" in schema:
+            yield from self._validate(inst, self._resolve(schema["$ref"]), path)
+
+        if "type" in schema and not _is_type(inst, schema["type"]):
+            yield err("type")
+            return  # other keywords would only add noise
+
+        if "enum" in schema and inst not in schema["enum"]:
+            yield err("enum")
+        if "const" in schema and inst != schema["const"]:
+            yield err("const")
+
+        if isinstance(inst, str):
+            if "minLength" in schema and len(inst) < schema["minLength"]:
+                yield err("minLength")
+            if "pattern" in schema and not re.search(schema["pattern"], inst):
+                yield err("pattern")
+
+        if _is_type(inst, "number"):
+            if "minimum" in schema and inst < schema["minimum"]:
+                yield err("minimum")
+            if "exclusiveMinimum" in schema and inst <= schema["exclusiveMinimum"]:
+                yield err("exclusiveMinimum")
+
+        if isinstance(inst, list):
+            if "minItems" in schema and len(inst) < schema["minItems"]:
+                yield err("minItems")
+            if schema.get("uniqueItems"):
+                seen = [json.dumps(x, sort_keys=True) for x in inst]
+                if len(seen) != len(set(seen)):
+                    yield err("uniqueItems")
+            if "items" in schema:
+                for i, item in enumerate(inst):
+                    yield from self._validate(item, schema["items"], path + [i])
+
+        if isinstance(inst, dict):
+            if "required" in schema:
+                missing = [k for k in schema["required"] if k not in inst]
+                if missing:
+                    yield err("required")
+            props = schema.get("properties", {})
+            for key, value in inst.items():
+                if key in props:
+                    yield from self._validate(value, props[key], path + [key])
+            if "additionalProperties" in schema:
+                extra_schema = schema["additionalProperties"]
+                extras = [k for k in inst if k not in props]
+                if extra_schema is False and extras:
+                    yield err("additionalProperties")
+                elif isinstance(extra_schema, dict):
+                    for key in extras:
+                        yield from self._validate(inst[key], extra_schema, path + [key])
+            if "propertyNames" in schema:
+                for key in inst:
+                    if not self.is_valid(key, schema["propertyNames"]):
+                        e = err("propertyNames", f'The name "{key}" is not allowed here.')
+                        e.instance = key
+                        yield e
+
+        for sub in schema.get("allOf", []):
+            yield from self._validate(inst, sub, path)
+
+        if "if" in schema and "then" in schema and self.is_valid(inst, schema["if"]):
+            yield from self._validate(inst, schema["then"], path)
+
+
+def _is_type(inst: Any, expected: str | list[str]) -> bool:
+    if isinstance(expected, list):
+        return any(_is_type(inst, t) for t in expected)
+    if expected == "object":
+        return isinstance(inst, dict)
+    if expected == "array":
+        return isinstance(inst, list)
+    if expected == "string":
+        return isinstance(inst, str)
+    if expected == "boolean":
+        return isinstance(inst, bool)
+    if expected == "null":
+        return inst is None
+    if expected == "integer":
+        return (isinstance(inst, int) and not isinstance(inst, bool)) or (isinstance(inst, float) and inst.is_integer())
+    if expected == "number":
+        return isinstance(inst, (int, float)) and not isinstance(inst, bool)
+    raise ValueError(f"Unknown schema type {expected!r}")
+
+
+_checker: SchemaChecker | None = None
+
+
+def _schema_checker() -> SchemaChecker:
+    global _checker
+    if _checker is None:
+        _checker = SchemaChecker(json.loads(SCHEMA_PATH.read_text(encoding="utf-8")))
+    return _checker
 
 
 # ---------------------------------------------------------------- entry points
@@ -132,7 +295,7 @@ def load_deck(target: str | Path | None = None) -> dict[str, Any]:
                             f"up to {SUPPORTED_SCHEMA_VERSION}. Get the newer version of the app.")])
 
     # 3. JSON Schema
-    schema_errors = sorted(_schema_validator().iter_errors(deck), key=lambda e: list(map(str, e.absolute_path)))
+    schema_errors = sorted(_schema_checker().iter_errors(deck), key=lambda e: [str(p) for p in e.path])
     if schema_errors:
         return fail(_dedupe([_format_schema_error(e, deck) for e in schema_errors]))
 
@@ -276,8 +439,8 @@ _JSON_TYPES = {dict: "an object", list: "a list", str: "text", bool: "true/false
                int: "a number", float: "a number", type(None): "null"}
 
 
-def _format_schema_error(error, deck: dict[str, Any]) -> dict[str, str]:
-    where = _where(list(error.absolute_path), deck)
+def _format_schema_error(error: SchemaError, deck: dict[str, Any]) -> dict[str, str]:
+    where = _where(error.path, deck)
     v, inst, expected = error.validator, error.instance, error.validator_value
 
     if v == "required":
@@ -304,10 +467,8 @@ def _format_schema_error(error, deck: dict[str, Any]) -> dict[str, str]:
         msg = "Contains duplicate entries."
     elif v in ("minimum", "exclusiveMinimum"):
         msg = f"Must be {'at least' if v == 'minimum' else 'greater than'} {expected}."
-    elif v == "propertyNames":
-        msg = error.message
-    else:
-        msg = error.message[0].upper() + error.message[1:] if error.message else "Invalid value."
+    else:  # propertyNames and anything future
+        msg = error.message or "Invalid value."
     return _issue(where, msg)
 
 
@@ -363,3 +524,33 @@ def _dedupe(issues: list[dict[str, str]]) -> list[dict[str, str]]:
             seen.add(key)
             out.append(item)
     return out
+
+
+# ------------------------------------------------------------------- CLI
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Validate one deck, or every deck in decks/. Exit code 1 if any fail."""
+    argv = sys.argv[1:] if argv is None else argv
+    if argv:
+        results = [load_deck(argv[0])]
+    else:
+        results = [load_deck(p) for p in sorted(DECKS_DIR.glob(f"*/{DECK_FILE}"))]
+    if not results:
+        print(f"No decks found in {DECKS_DIR}.")
+        return 1
+    failures = 0
+    for result in results:
+        if result["ok"]:
+            print(f"OK    {result['deckPath']}")
+            continue
+        failures += 1
+        print(f"FAIL  {result['deckPath']}")
+        for err in result["errors"]:
+            where = f"{err['where']}: " if err["where"] else ""
+            print(f"        - {where}{err['message']}")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

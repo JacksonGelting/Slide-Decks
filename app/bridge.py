@@ -1,40 +1,49 @@
-"""Functions the renderer can call.
+"""The QWebChannel object shared with the renderer.
 
-The same Bridge instance is exposed two ways, and both return identical data:
-  * as pywebview's JS API, so the renderer calls window.pywebview.api.get_deck()
-  * over the local HTTP server at /api/<method>, for --browser debugging
+The renderer reaches it as `bridge` (see renderer/js/api.js):
 
-Every public method must return JSON-serialisable data and must not raise for
-a bad deck; problems come back inside the result.
+    JS -> Python   bridge.getDeck(cb)        deck payload as a JSON string
+                   bridge.getSettings(cb)    {"dev": bool} as a JSON string
+                   bridge.slideChanged(i)    renderer moved to slide i (0-based)
+    Python -> JS   bridge.goToSlide(i)       signal: renderer should show slide i
+
+Python-side listeners (the outline panel, the window title) use deckLoaded
+and slideShown.
+
+Data crosses as JSON strings rather than QVariant maps so numbers, nulls and
+nesting survive exactly.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any
 
-import library
-from loader import load_deck
+from PySide6.QtCore import QObject, Signal, Slot
+
+from library import deck_payload
 
 
-class Bridge:
-    # Methods reachable from the renderer. Anything else is private to Python.
-    PUBLIC = ("get_deck", "get_settings", "list_decks")
+class Bridge(QObject):
+    goToSlide = Signal(int)          # Python -> renderer
+    deckLoaded = Signal(dict)        # Python side: a deck payload was just served
+    slideShown = Signal(int)         # Python side: the renderer is on slide i
 
-    def __init__(self, deck_target: str | Path | None, dev: bool = False) -> None:
-        self._deck_target = deck_target
-        self._dev = dev
+    def __init__(self, deck_path: Path, dev: bool = False, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.deck_path = deck_path
+        self.dev = dev
 
-    def get_deck(self) -> dict[str, Any]:
-        """Load (or reload from disk) the current deck, validated."""
-        result = load_deck(self._deck_target)
-        # The renderer resolves asset paths against this URL prefix, which the
-        # local server maps to decks/<folder>/.
-        result["assetBase"] = f"/decks/{result['deckFolder']}/"
-        return result
+    @Slot(result=str)
+    def getDeck(self) -> str:  # noqa: N802 - JS-facing name
+        payload = deck_payload(self.deck_path)
+        self.deckLoaded.emit(payload)
+        return json.dumps(payload)
 
-    def get_settings(self) -> dict[str, Any]:
-        return {"dev": self._dev}
+    @Slot(result=str)
+    def getSettings(self) -> str:  # noqa: N802
+        return json.dumps({"dev": self.dev})
 
-    def list_decks(self) -> list[dict[str, Any]]:
-        return library.list_decks()
+    @Slot(int)
+    def slideChanged(self, index: int) -> None:  # noqa: N802
+        self.slideShown.emit(index)
