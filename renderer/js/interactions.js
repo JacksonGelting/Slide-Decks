@@ -29,9 +29,14 @@ export function installHoverCards(canvas, ctx, getScale) {
   };
 
   function show(target) {
+    // Only things on the slide being shown. While slides cross-fade, the old
+    // slide can still be under a still pointer; a card opened there would
+    // never get a pointerout once that slide is hidden.
+    if (!target.isConnected || !target.closest(".slide.is-current")) return;
     clearTimeout(hideTimer);
     if (anchor === target && !card.hidden) return;
     anchor?.removeAttribute("aria-describedby");
+    anchor?.classList.remove("is-active");
     anchor = target;
     card.replaceChildren();
     card.classList.toggle("is-compact", Boolean(target._card.compact));
