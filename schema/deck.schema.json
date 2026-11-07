@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JacksonGelting/Slide-Decks/schema/deck.schema.json",
+  "title": "Slide Decks deck file (schemaVersion 1)",
+  "description": "The contract every decks/<deck-id>/deck.json is written against. Structure is checked here; cross-references (unique ids, slots per layout, glossary terms, variables) are checked by app/validate.py, which also applies this file with a built-in checker (no third-party packages).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "title", "slides"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of this contract the deck was written for. The app refuses decks newer than it understands.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "description": "Deck id. Must match the deck's folder name.",
+      "$ref": "#/$defs/slug"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "subtitle": { "type": "string" },
+    "subject": { "type": "string" },
+    "author": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "theme": {
+      "type": "string",
+      "enum": ["default"],
+      "default": "default"
+    },
+    "glossary": {
+      "description": "Deck-wide hover definitions. Keys are the terms used in [[term]]; values are rich text.",
+      "type": "object",
+      "propertyNames": { "type": "string", "minLength": 1, "pattern": "^[^\\[\\]|]+$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "variables": {
+      "description": "Deck-wide variables, read with {{name}}. Sliders that change them arrive in a later phase.",
+      "type": "object",
+      "propertyNames": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/variable" }
+    },
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/slide" }
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "elementId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "variable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value"],
+      "properties": {
+        "label": { "type": "string" },
+        "unit": { "type": "string" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0 },
+        "value": { "type": "number" }
+      }
+    },
+    "slide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "layout"],
+      "properties": {
+        "id": { "$ref": "#/$defs/elementId" },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "title",
+            "title-body",
+            "two-column",
+            "body-figure",
+            "full-figure",
+            "equation-focus",
+            "section-break"
+          ]
+        },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "elements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/element" },
+          "default": []
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "element": {
+      "type": "object",
+      "required": ["type", "slot"],
+      "properties": {
+        "type": { "type": "string", "enum": ["text"] },
+        "id": { "$ref": "#/$defs/elementId" },
+        "slot": {
+          "type": "string",
+          "enum": ["body", "left", "right", "figure", "equation"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
+          "then": { "$ref": "#/$defs/textElement" }
+        }
+      ]
+    },
+    "textElement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "slot", "content"],
+      "properties": {
+        "type": { "const": "text" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "slot": { "type": "string" },
+        "content": {
+          "description": "Rich text. Blank lines split paragraphs; lines starting with '- ' or '1. ' make lists.",
+          "type": "string",
+          "minLength": 1
+        },
+        "size": {
+          "description": "Text size from the theme scale.",
+          "type": "string",
+          "enum": ["normal", "large", "small"],
+          "default": "normal"
+        },
+        "align": {
+          "type": "string",
+          "enum": ["start", "center"],
+          "default": "start"
+        }
+      }
+    }
+  }
+}

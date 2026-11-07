@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.spec
+# Per-user viewer settings (last slide, theme) live outside the repo.
+settings.local.json

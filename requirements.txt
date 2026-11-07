@@ -1,0 +1,3 @@
+# Runtime: the only dependency.
+PySide6>=6.8
+# Build only (Phase 5, build.py): pyinstaller
